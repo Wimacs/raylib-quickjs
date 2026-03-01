@@ -1,48 +1,38 @@
 # Binding Coverage Snapshot
 
-- Generated: 2026-03-01T08:43:21.335Z
+- Generated: 2026-03-01T08:51:37.732Z
 - Raylib API baseline: `thirdparty/raylib/parser/output/raylib_api.json`
 - Type declarations source: `examples/lib.raylib.d.ts`
 
 ## Summary
 
 - Cheatsheet-visible functions: **581**
-- Bound in JS declarations: **541**
-- Missing from JS declarations: **40**
-- Coverage: **93.12%**
-- Explicit `ignore("...")` entries in generator: **48**
+- Bound in JS declarations: **556**
+- Missing from JS declarations: **25**
+- Coverage: **95.70%**
+- Explicit `ignore("...")` entries in generator: **28**
 
 ## Missing By Module
 
-### core (16)
+### core (7)
 
 - `GetWindowHandle`
-- `LoadRandomSequence`
-- `MemAlloc`
-- `MemFree`
-- `MemRealloc`
 - `SetLoadFileDataCallback`
 - `SetLoadFileTextCallback`
 - `SetSaveFileDataCallback`
 - `SetSaveFileTextCallback`
 - `SetTraceLogCallback`
 - `SetWindowIcons`
-- `UnloadDirectoryFiles`
-- `UnloadDroppedFiles`
-- `UnloadFileData`
-- `UnloadFileText`
-- `UnloadRandomSequence`
 
 ### shapes (0)
 
 - _none_
 
-### textures (2)
+### textures (0)
 
-- `UnloadImageColors`
-- `UnloadImagePalette`
+- _none_
 
-### text (10)
+### text (7)
 
 - `GenImageFontAtlas`
 - `LoadFontData`
@@ -51,9 +41,6 @@
 - `TextFormat`
 - `TextJoin`
 - `TextSplit`
-- `UnloadCodepoints`
-- `UnloadFontData`
-- `UnloadUTF8`
 
 ### models (6)
 
@@ -64,14 +51,13 @@
 - `UnloadModelAnimations`
 - `UpdateModelAnimation`
 
-### audio (6)
+### audio (5)
 
 - `AttachAudioMixedProcessor`
 - `AttachAudioStreamProcessor`
 - `DetachAudioMixedProcessor`
 - `DetachAudioStreamProcessor`
 - `SetAudioStreamCallback`
-- `UnloadWaveSamples`
 
 ## Explicit Ignores
 
@@ -89,11 +75,7 @@
 - `LoadFontData`
 - `LoadMaterials`
 - `LoadModelAnimations`
-- `LoadRandomSequence`
 - `MatrixToFloatV`
-- `MemAlloc`
-- `MemFree`
-- `MemRealloc`
 - `QuaternionToAxisAngle`
 - `SetAudioStreamCallback`
 - `SetLoadFileDataCallback`
@@ -102,24 +84,8 @@
 - `SetSaveFileTextCallback`
 - `SetTraceLogCallback`
 - `SetWindowIcons`
-- `TextAppend`
-- `TextCopy`
-- `TextFormat`
-- `TextJoin`
-- `TextSplit`
-- `UnloadCodepoints`
-- `UnloadDirectoryFiles`
-- `UnloadDroppedFiles`
-- `UnloadFileData`
-- `UnloadFileText`
-- `UnloadFontData`
-- `UnloadImageColors`
-- `UnloadImagePalette`
 - `UnloadModelAnimation`
 - `UnloadModelAnimations`
-- `UnloadRandomSequence`
-- `UnloadUTF8`
-- `UnloadWaveSamples`
 - `UpdateModelAnimation`
 - `Vector3OrthoNormalize`
 - `Vector3ToFloatV`

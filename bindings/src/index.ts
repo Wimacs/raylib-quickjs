@@ -390,12 +390,57 @@ function main(){
     const traceLog = getFunction(api.functions, "TraceLog")!
     traceLog.params?.pop()
 
-    // Memory functions not supported on JS, just use ArrayBuffer
-    ignore("MemAlloc")
-    ignore("MemRealloc")
-    ignore("MemFree")
-    ignore("LoadRandomSequence")
-    ignore("UnloadRandomSequence")
+    // Memory/random helpers exposed as JS ArrayBuffer based compatibility shims.
+    getFunction(api.functions, "MemAlloc")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("unsigned int", "size", "argv[0]", core.structLookup)
+            gen.call("MemAlloc", ["size"], { type: "void *", name: "ptr" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasPtr = gen.if("ptr != NULL")
+            hasPtr.call("memset", ["ptr", "0", "size"])
+            hasPtr.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)ptr, size)")
+            hasPtr.call("MemFree", ["ptr"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "MemRealloc")!.params![0].binding = { jsType: "ArrayBuffer" }
+    getFunction(api.functions, "MemRealloc")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.declare("oldSize", "size_t")
+            gen.declare("oldJsPtr", "void *", false, "JS_GetArrayBuffer(ctx, &oldSize, argv[0])")
+            gen.if("oldJsPtr == NULL").returnExp("JS_EXCEPTION")
+            gen.jsToC("unsigned int", "size", "argv[1]", core.structLookup)
+            gen.call("MemAlloc", ["(unsigned int)oldSize"], { type: "void *", name: "oldPtr" })
+            gen.if("oldPtr == NULL").returnExp("JS_NULL")
+            gen.call("memcpy", ["oldPtr", "oldJsPtr", "oldSize"])
+            gen.call("MemRealloc", ["oldPtr", "size"], { type: "void *", name: "newPtr" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasPtr = gen.if("newPtr != NULL")
+            const clearTail = hasPtr.if("size > oldSize")
+            clearTail.call("memset", ["((unsigned char *)newPtr) + oldSize", "0", "size - oldSize"])
+            hasPtr.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)newPtr, size)")
+            hasPtr.call("MemFree", ["newPtr"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "MemFree")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "LoadRandomSequence")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("unsigned int", "count", "argv[0]", core.structLookup)
+            gen.jsToC("int", "min", "argv[1]", core.structLookup)
+            gen.jsToC("int", "max", "argv[2]", core.structLookup)
+            gen.call("LoadRandomSequence", ["count", "min", "max"], { type: "int *", name: "sequence" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasSequence = gen.if("sequence != NULL")
+            hasSequence.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)sequence, count*sizeof(int))")
+            hasSequence.call("UnloadRandomSequence", ["sequence"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "UnloadRandomSequence")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     
     // Callbacks not supported on JS
     ignore("SetTraceLogCallback")
@@ -418,7 +463,7 @@ function main(){
             gen.returnExp("buffer")
         } 
     }
-    ignore("UnloadFileData")
+    getFunction(api.functions, "UnloadFileData")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     
     // TODO: SaveFileData works but unnecessary makes copy of memory
     getFunction(api.functions, "SaveFileData")!.binding = { }
@@ -436,7 +481,7 @@ function main(){
     }
     getFunction(api.functions, "LoadFileText")!.binding = { after: gen => gen.call("UnloadFileText", ["returnVal"]) } 
     getFunction(api.functions, "SaveFileText")!.params![1].binding = { typeAlias: "const char *" } 
-    ignore("UnloadFileText")
+    getFunction(api.functions, "UnloadFileText")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     
     const createFileList = (gen: QuickJsGenerator, loadName: string, unloadName: string, args: string[]) => {
         gen.call(loadName, args, { type: "FilePathList", name: "files" })
@@ -466,7 +511,7 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadDirectoryFiles")
+    getFunction(api.functions, "UnloadDirectoryFiles")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "LoadDroppedFiles")!.binding = { 
         jsReturns: "string[]",
         body: gen => { 
@@ -474,7 +519,7 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadDroppedFiles")
+    getFunction(api.functions, "UnloadDroppedFiles")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     
     // Compression/encoding functionality
     getFunction(api.functions, "CompressData")!.params![1].binding = { ignore: true }
@@ -695,8 +740,8 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadImageColors")
-    ignore("UnloadImagePalette")
+    getFunction(api.functions, "UnloadImageColors")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "UnloadImagePalette")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "GetPixelColor")!.binding = {
         body: gen => {
             gen.declare("srcSize", "size_t")
@@ -737,7 +782,7 @@ function main(){
     lffm.binding = { customizeCall: "Font returnVal = LoadFontFromMemory(fileType, fileData, (int)fileData_size, fontSize, NULL, 0);" }
     ignore("LoadFontData")
     ignore("GenImageFontAtlas")
-    ignore("UnloadFontData")
+    getFunction(api.functions, "UnloadFontData")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "ExportFontAsCode")!.binding = {}
     getFunction(api.functions, "DrawTextCodepoints")!.params![1].binding = { jsType: "ArrayBuffer" }
     getFunction(api.functions, "DrawTextCodepoints")!.binding = {
@@ -776,7 +821,7 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadUTF8")
+    getFunction(api.functions, "UnloadUTF8")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "LoadCodepoints")!.params![1].binding = { jsType: "{ count: number } | null | undefined" }
     getFunction(api.functions, "LoadCodepoints")!.binding = {
         jsReturns: "ArrayBuffer | null",
@@ -794,18 +839,105 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadCodepoints")
+    getFunction(api.functions, "UnloadCodepoints")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "GetCodepointCount")!.binding = {}
     getFunction(api.functions, "GetCodepoint")!.binding = {}
     getFunction(api.functions, "GetCodepointNext")!.binding = {}
     getFunction(api.functions, "GetCodepointPrevious")!.binding = {}
     getFunction(api.functions, "CodepointToUTF8")!.binding = {}
 
-    ignore("TextCopy")
-    ignore("TextFormat")
-    ignore("TextJoin")
-    ignore("TextSplit")
-    ignore("TextAppend")
+    getFunction(api.functions, "TextCopy")!.params![0].binding = { jsType: "{ text: string } | null | undefined" }
+    getFunction(api.functions, "TextCopy")!.binding = {
+        body: gen => {
+            gen.jsToC("const char *", "src", "argv[1]")
+            const hasDst = gen.if("!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])")
+            hasDst.call("JS_SetPropertyStr", ["ctx", "argv[0]", "\"text\"", "JS_NewString(ctx, src ? src : \"\")"])
+            gen.declare("bytes", "int", false, "src ? (int)strlen(src) : 0")
+            gen.jsCleanUpParameter("const char *", "src")
+            gen.jsToJs("int", "ret", "bytes", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "TextFormat")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "TextFormat")!.binding = {
+        body: gen => {
+            gen.jsToC("const char *", "text", "argv[0]")
+            gen.declare("ret", "JSValue", false, "JS_NewString(ctx, text ? text : \"\")")
+            gen.jsCleanUpParameter("const char *", "text")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "TextJoin")!.params![0].binding = { jsType: "string[]" }
+    getFunction(api.functions, "TextJoin")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "TextJoin")!.binding = {
+        body: gen => {
+            gen.declare("joinFn", "JSValue", false, "JS_GetPropertyStr(ctx, argv[0], \"join\")")
+            gen.if("JS_IsException(joinFn)").returnExp("JS_EXCEPTION")
+            gen.declare("joinArg", "JSValue", false, "argv[1]")
+            gen.call("JS_Call", ["ctx", "joinFn", "argv[0]", "1", "&joinArg"], { type: "JSValue", name: "ret" })
+            gen.call("JS_FreeValue", ["ctx", "joinFn"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "TextSplit")!.params![1].binding = { jsType: "string | null | undefined" }
+    getFunction(api.functions, "TextSplit")!.params![2].binding = { jsType: "{ count: number } | null | undefined" }
+    getFunction(api.functions, "TextSplit")!.binding = {
+        jsReturns: "string[]",
+        body: gen => {
+            gen.declare("splitFn", "JSValue", false, "JS_GetPropertyStr(ctx, argv[0], \"split\")")
+            gen.if("JS_IsException(splitFn)").returnExp("JS_EXCEPTION")
+            gen.declare("splitArg", "JSValue", false, "argv[1]")
+            gen.call("JS_Call", ["ctx", "splitFn", "argv[0]", "1", "&splitArg"], { type: "JSValue", name: "ret" })
+            gen.call("JS_FreeValue", ["ctx", "splitFn"])
+            gen.if("JS_IsException(ret)").returnExp("JS_EXCEPTION")
+            const hasCount = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            hasCount.call("JS_GetPropertyStr", ["ctx", "ret", "\"length\""], { name: "lengthJs", type: "JSValue" })
+            hasCount.declare("count", "int", false, "0")
+            hasCount.call("JS_ToInt32", ["ctx", "&count", "lengthJs"])
+            hasCount.call("JS_FreeValue", ["ctx", "lengthJs"])
+            hasCount.call("JS_SetPropertyStr", ["ctx", "argv[2]", "\"count\"", "JS_NewInt32(ctx, count)"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "TextAppend")!.params![0].binding = { jsType: "{ text: string, position?: number } | null | undefined" }
+    getFunction(api.functions, "TextAppend")!.params![2].binding = { jsType: "{ position: number } | null | undefined" }
+    getFunction(api.functions, "TextAppend")!.binding = {
+        body: gen => {
+            gen.statement("const char *base = \"\"")
+            gen.statement("bool baseOwned = false")
+            gen.statement("JSValue textJs = JS_UNDEFINED")
+            const hasTextObj = gen.if("!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])")
+            hasTextObj.call("JS_GetPropertyStr", ["ctx", "argv[0]", "\"text\""], { name: "textJs", type: "JSValue" })
+            hasTextObj.statement("if(!JS_IsNull(textJs) && !JS_IsUndefined(textJs)) { base = JS_ToCString(ctx, textJs); baseOwned = true; }")
+            gen.jsToC("const char *", "append", "argv[1]")
+            gen.declare("position", "int", false, "0")
+            const hasPosArg = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            hasPosArg.call("JS_GetPropertyStr", ["ctx", "argv[2]", "\"position\""], { name: "positionJs", type: "JSValue" })
+            hasPosArg.call("JS_ToInt32", ["ctx", "&position", "positionJs"])
+            hasPosArg.call("JS_FreeValue", ["ctx", "positionJs"])
+            gen.declare("baseLen", "int", false, "(int)strlen(base)")
+            gen.if("position < 0").statement("position = 0")
+            gen.if("position > baseLen").statement("position = baseLen")
+            gen.declare("appendLen", "int", false, "append ? (int)strlen(append) : 0")
+            gen.declare("newLen", "int", false, "baseLen + appendLen")
+            gen.declare("merged", "char *", false, "(char *)malloc(newLen + 1)")
+            gen.if("merged == NULL").returnExp("JS_EXCEPTION")
+            gen.call("memcpy", ["merged", "base", "position"])
+            gen.call("memcpy", ["merged + position", "append", "appendLen"])
+            gen.call("memcpy", ["merged + position + appendLen", "base + position", "baseLen - position"])
+            gen.statement("merged[newLen] = 0")
+            const setText = gen.if("!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])")
+            setText.call("JS_SetPropertyStr", ["ctx", "argv[0]", "\"text\"", "JS_NewString(ctx, merged)"])
+            gen.statement("position += appendLen")
+            const setPos = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            setPos.call("JS_SetPropertyStr", ["ctx", "argv[2]", "\"position\"", "JS_NewInt32(ctx, position)"])
+            gen.statement("if(baseOwned) JS_FreeCString(ctx, base)")
+            gen.call("JS_FreeValue", ["ctx", "textJs"])
+            gen.jsCleanUpParameter("const char *", "append")
+            gen.statement("free(merged)")
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
     getFunction(api.functions, "TextReplace")!.binding = { after: gen => gen.call("MemFree", ["(void *)returnVal"]) }
     getFunction(api.functions, "TextInsert")!.binding = { after: gen => gen.call("MemFree", ["(void *)returnVal"]) }
 
@@ -844,7 +976,7 @@ function main(){
             gen.returnExp("ret")
         }
     }
-    ignore("UnloadWaveSamples")
+    getFunction(api.functions, "UnloadWaveSamples")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "LoadMusicStreamFromMemory")!.params![2].binding = { ignore: true }
     getFunction(api.functions, "LoadMusicStreamFromMemory")!.binding = {
         customizeCall: "Music returnVal = LoadMusicStreamFromMemory(fileType, data, (int)data_size);"

@@ -3453,6 +3453,26 @@ static JSValue js_getRandomValue(JSContext * ctx, JSValueConst this_val, int arg
     return ret;
 }
 
+static JSValue js_loadRandomSequence(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    unsigned int count;
+    JS_ToUint32(ctx, &count, argv[0]);
+    int min;
+    JS_ToInt32(ctx, &min, argv[1]);
+    int max;
+    JS_ToInt32(ctx, &max, argv[2]);
+    int * sequence = LoadRandomSequence(count, min, max);
+    JSValue ret = JS_NULL;
+    if(sequence != NULL) {
+        ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)sequence, count*sizeof(int));
+        UnloadRandomSequence(sequence);
+    }
+    return ret;
+}
+
+static JSValue js_unloadRandomSequence(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_takeScreenshot(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * fileName = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     TakeScreenshot(fileName);
@@ -3490,6 +3510,48 @@ static JSValue js_setTraceLogLevel(JSContext * ctx, JSValueConst this_val, int a
     return JS_UNDEFINED;
 }
 
+static JSValue js_memAlloc(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    unsigned int size;
+    JS_ToUint32(ctx, &size, argv[0]);
+    void * ptr = MemAlloc(size);
+    JSValue ret = JS_NULL;
+    if(ptr != NULL) {
+        memset(ptr, 0, size);
+        ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)ptr, size);
+        MemFree(ptr);
+    }
+    return ret;
+}
+
+static JSValue js_memRealloc(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    size_t oldSize;
+    void * oldJsPtr = JS_GetArrayBuffer(ctx, &oldSize, argv[0]);
+    if(oldJsPtr == NULL) {
+        return JS_EXCEPTION;
+    }
+    unsigned int size;
+    JS_ToUint32(ctx, &size, argv[1]);
+    void * oldPtr = MemAlloc((unsigned int)oldSize);
+    if(oldPtr == NULL) {
+        return JS_NULL;
+    }
+    memcpy(oldPtr, oldJsPtr, oldSize);
+    void * newPtr = MemRealloc(oldPtr, size);
+    JSValue ret = JS_NULL;
+    if(newPtr != NULL) {
+        if(size > oldSize) {
+            memset(((unsigned char *)newPtr) + oldSize, 0, size - oldSize);
+        }
+        ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)newPtr, size);
+        MemFree(newPtr);
+    }
+    return ret;
+}
+
+static JSValue js_memFree(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_loadFileData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * fileName = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     int bytesRead;
@@ -3497,6 +3559,10 @@ static JSValue js_loadFileData(JSContext * ctx, JSValueConst this_val, int argc,
     JSValue buffer = JS_NewArrayBufferCopy(ctx, (const uint8_t*)retVal, bytesRead);
     UnloadFileData(retVal);
     return buffer;
+}
+
+static JSValue js_unloadFileData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
 }
 
 static JSValue js_saveFileData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -3540,6 +3606,10 @@ static JSValue js_loadFileText(JSContext * ctx, JSValueConst this_val, int argc,
     JSValue ret = JS_NewString(ctx, returnVal);
     UnloadFileText(returnVal);
     return ret;
+}
+
+static JSValue js_unloadFileText(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
 }
 
 static JSValue js_saveFileText(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -3697,6 +3767,10 @@ static JSValue js_loadDirectoryFilesEx(JSContext * ctx, JSValueConst this_val, i
     return ret;
 }
 
+static JSValue js_unloadDirectoryFiles(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_isFileDropped(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     bool returnVal = IsFileDropped();
     JSValue ret = JS_NewBool(ctx, returnVal);
@@ -3711,6 +3785,10 @@ static JSValue js_loadDroppedFiles(JSContext * ctx, JSValueConst this_val, int a
     }
     UnloadDroppedFiles(files);
     return ret;
+}
+
+static JSValue js_unloadDroppedFiles(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
 }
 
 static JSValue js_getFileModTime(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -6132,6 +6210,14 @@ static JSValue js_loadImagePalette(JSContext * ctx, JSValueConst this_val, int a
     return ret;
 }
 
+static JSValue js_unloadImageColors(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_unloadImagePalette(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_getImageAlphaBorder(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     Image* image_ptr = (Image*)JS_GetOpaque2(ctx, argv[0], js_Image_class_id);
     if(image_ptr == NULL) return JS_EXCEPTION;
@@ -7114,6 +7200,10 @@ static JSValue js_isFontValid(JSContext * ctx, JSValueConst this_val, int argc, 
     return ret;
 }
 
+static JSValue js_unloadFontData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_unloadFont(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     Font* font_ptr = (Font*)JS_GetOpaque2(ctx, argv[0], js_Font_class_id);
     if(font_ptr == NULL) return JS_EXCEPTION;
@@ -7355,6 +7445,10 @@ static JSValue js_loadUTF8(JSContext * ctx, JSValueConst this_val, int argc, JSV
     return ret;
 }
 
+static JSValue js_unloadUTF8(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_loadCodepoints(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * text = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     int count = 0;
@@ -7369,6 +7463,10 @@ static JSValue js_loadCodepoints(JSContext * ctx, JSValueConst this_val, int arg
     }
     JS_FreeCString(ctx, text);
     return ret;
+}
+
+static JSValue js_unloadCodepoints(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
 }
 
 static JSValue js_getCodepointCount(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -8991,6 +9089,10 @@ static JSValue js_loadWaveSamples(JSContext * ctx, JSValueConst this_val, int ar
         UnloadWaveSamples(samples);
     }
     return ret;
+}
+
+static JSValue js_unloadWaveSamples(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
 }
 
 static JSValue js_loadMusicStream(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -12622,15 +12724,22 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("waitTime",1,js_waitTime),
     JS_CFUNC_DEF("setRandomSeed",1,js_setRandomSeed),
     JS_CFUNC_DEF("getRandomValue",2,js_getRandomValue),
+    JS_CFUNC_DEF("loadRandomSequence",3,js_loadRandomSequence),
+    JS_CFUNC_DEF("unloadRandomSequence",1,js_unloadRandomSequence),
     JS_CFUNC_DEF("takeScreenshot",1,js_takeScreenshot),
     JS_CFUNC_DEF("setConfigFlags",1,js_setConfigFlags),
     JS_CFUNC_DEF("openURL",1,js_openURL),
     JS_CFUNC_DEF("traceLog",2,js_traceLog),
     JS_CFUNC_DEF("setTraceLogLevel",1,js_setTraceLogLevel),
+    JS_CFUNC_DEF("memAlloc",1,js_memAlloc),
+    JS_CFUNC_DEF("memRealloc",2,js_memRealloc),
+    JS_CFUNC_DEF("memFree",1,js_memFree),
     JS_CFUNC_DEF("loadFileData",1,js_loadFileData),
+    JS_CFUNC_DEF("unloadFileData",1,js_unloadFileData),
     JS_CFUNC_DEF("saveFileData",3,js_saveFileData),
     JS_CFUNC_DEF("exportDataAsCode",2,js_exportDataAsCode),
     JS_CFUNC_DEF("loadFileText",1,js_loadFileText),
+    JS_CFUNC_DEF("unloadFileText",1,js_unloadFileText),
     JS_CFUNC_DEF("saveFileText",2,js_saveFileText),
     JS_CFUNC_DEF("fileExists",1,js_fileExists),
     JS_CFUNC_DEF("directoryExists",1,js_directoryExists),
@@ -12649,8 +12758,10 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("isFileNameValid",1,js_isFileNameValid),
     JS_CFUNC_DEF("loadDirectoryFiles",1,js_loadDirectoryFiles),
     JS_CFUNC_DEF("loadDirectoryFilesEx",3,js_loadDirectoryFilesEx),
+    JS_CFUNC_DEF("unloadDirectoryFiles",1,js_unloadDirectoryFiles),
     JS_CFUNC_DEF("isFileDropped",0,js_isFileDropped),
     JS_CFUNC_DEF("loadDroppedFiles",0,js_loadDroppedFiles),
+    JS_CFUNC_DEF("unloadDroppedFiles",1,js_unloadDroppedFiles),
     JS_CFUNC_DEF("getFileModTime",1,js_getFileModTime),
     JS_CFUNC_DEF("compressData",1,js_compressData),
     JS_CFUNC_DEF("decompressData",1,js_decompressData),
@@ -12834,6 +12945,8 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("imageColorReplace",3,js_imageColorReplace),
     JS_CFUNC_DEF("loadImageColors",1,js_loadImageColors),
     JS_CFUNC_DEF("loadImagePalette",3,js_loadImagePalette),
+    JS_CFUNC_DEF("unloadImageColors",1,js_unloadImageColors),
+    JS_CFUNC_DEF("unloadImagePalette",1,js_unloadImagePalette),
     JS_CFUNC_DEF("getImageAlphaBorder",2,js_getImageAlphaBorder),
     JS_CFUNC_DEF("getImageColor",3,js_getImageColor),
     JS_CFUNC_DEF("imageClearBackground",2,js_imageClearBackground),
@@ -12900,6 +13013,7 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("loadFontFromImage",3,js_loadFontFromImage),
     JS_CFUNC_DEF("loadFontFromMemory",3,js_loadFontFromMemory),
     JS_CFUNC_DEF("isFontValid",1,js_isFontValid),
+    JS_CFUNC_DEF("unloadFontData",2,js_unloadFontData),
     JS_CFUNC_DEF("unloadFont",1,js_unloadFont),
     JS_CFUNC_DEF("exportFontAsCode",2,js_exportFontAsCode),
     JS_CFUNC_DEF("drawFPS",2,js_drawFPS),
@@ -12915,7 +13029,9 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("getGlyphInfo",2,js_getGlyphInfo),
     JS_CFUNC_DEF("getGlyphAtlasRec",2,js_getGlyphAtlasRec),
     JS_CFUNC_DEF("loadUTF8",2,js_loadUTF8),
+    JS_CFUNC_DEF("unloadUTF8",1,js_unloadUTF8),
     JS_CFUNC_DEF("loadCodepoints",2,js_loadCodepoints),
+    JS_CFUNC_DEF("unloadCodepoints",1,js_unloadCodepoints),
     JS_CFUNC_DEF("getCodepointCount",1,js_getCodepointCount),
     JS_CFUNC_DEF("getCodepoint",2,js_getCodepoint),
     JS_CFUNC_DEF("getCodepointNext",2,js_getCodepointNext),
@@ -13034,6 +13150,7 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("waveCrop",3,js_waveCrop),
     JS_CFUNC_DEF("waveFormat",4,js_waveFormat),
     JS_CFUNC_DEF("loadWaveSamples",1,js_loadWaveSamples),
+    JS_CFUNC_DEF("unloadWaveSamples",1,js_unloadWaveSamples),
     JS_CFUNC_DEF("loadMusicStream",1,js_loadMusicStream),
     JS_CFUNC_DEF("loadMusicStreamFromMemory",2,js_loadMusicStreamFromMemory),
     JS_CFUNC_DEF("isMusicValid",1,js_isMusicValid),

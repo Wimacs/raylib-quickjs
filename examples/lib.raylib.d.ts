@@ -594,6 +594,10 @@ declare function waitTime(seconds: number): void;
 declare function setRandomSeed(seed: number): void;
 /** Get a random value between min and max (both included) */
 declare function getRandomValue(min: number, max: number): number;
+/** Load random values sequence, no values repeated */
+declare function loadRandomSequence(count: number, min: number, max: number): ArrayBuffer | null;
+/** Unload random values sequence */
+declare function unloadRandomSequence(sequence: int): void;
 /** Takes a screenshot of current screen (filename extension defines format) */
 declare function takeScreenshot(fileName: string | undefined | null): void;
 /** Setup init configuration flags (view FLAGS) */
@@ -604,14 +608,24 @@ declare function openURL(url: string | undefined | null): void;
 declare function traceLog(logLevel: number, text: string | undefined | null): void;
 /** Set the current threshold (minimum) log level */
 declare function setTraceLogLevel(logLevel: number): void;
+/** Internal memory allocator */
+declare function memAlloc(size: number): ArrayBuffer | null;
+/** Internal memory reallocator */
+declare function memRealloc(ptr: ArrayBuffer, size: number): ArrayBuffer | null;
+/** Internal memory free */
+declare function memFree(ptr: any): void;
 /** Load file data as byte array (read) */
 declare function loadFileData(fileName: string | undefined | null): ArrayBuffer;
+/** Unload file data allocated by LoadFileData() */
+declare function unloadFileData(data: ArrayBuffer): void;
 /** Save data to file from byte array (write), returns true on success */
 declare function saveFileData(fileName: string | undefined | null, data: any, dataSize: number): boolean;
 /** Export data to code (.h), returns true on success */
 declare function exportDataAsCode(data: ArrayBuffer, fileName: string | undefined | null): boolean;
 /** Load text data from file (read), returns a '\0' terminated string */
 declare function loadFileText(fileName: string | undefined | null): string | undefined | null;
+/** Unload file text data allocated by LoadFileText() */
+declare function unloadFileText(text: string | undefined | null): void;
 /** Save text data to file (write), string must be '\0' terminated, returns true on success */
 declare function saveFileText(fileName: string | undefined | null, text: string | undefined | null): boolean;
 /** Check if file exists */
@@ -648,10 +662,14 @@ declare function isFileNameValid(fileName: string | undefined | null): boolean;
 declare function loadDirectoryFiles(dirPath: string | undefined | null): string[];
 /** Load directory filepaths with extension filtering and recursive directory scan. Use 'DIR' in the filter string to include directories in the result */
 declare function loadDirectoryFilesEx(basePath: string | undefined | null, filter: string | undefined | null, scanSubdirs: boolean): string[];
+/** Unload filepaths */
+declare function unloadDirectoryFiles(files: FilePathList): void;
 /** Check if a file has been dropped into window */
 declare function isFileDropped(): boolean;
 /** Load dropped filepaths */
 declare function loadDroppedFiles(): string[];
+/** Unload dropped filepaths */
+declare function unloadDroppedFiles(files: FilePathList): void;
 /** Get file modification time (last write time) */
 declare function getFileModTime(fileName: string | undefined | null): number;
 /** Compress data (DEFLATE algorithm), memory must be MemFree() */
@@ -1018,6 +1036,10 @@ declare function imageColorReplace(image: Image, color: Color, replace: Color): 
 declare function loadImageColors(image: Image): ArrayBuffer;
 /** Load colors palette from image as a Color array (RGBA - 32bit) */
 declare function loadImagePalette(image: Image, maxPaletteSize: number, colorCount: { colorCount: number } | null | undefined): ArrayBuffer | null;
+/** Unload color data loaded with LoadImageColors() */
+declare function unloadImageColors(colors: Color): void;
+/** Unload colors palette loaded with LoadImagePalette() */
+declare function unloadImagePalette(colors: Color): void;
 /** Get image alpha border rectangle */
 declare function getImageAlphaBorder(image: Image, threshold: number): Rectangle;
 /** Get image pixel color at (x, y) position */
@@ -1150,6 +1172,8 @@ declare function loadFontFromImage(image: Image, key: Color, firstChar: number):
 declare function loadFontFromMemory(fileType: string | undefined | null, fileData: ArrayBuffer, fontSize: number): Font;
 /** Check if a font is valid (font data loaded, WARNING: GPU texture not checked) */
 declare function isFontValid(font: Font): boolean;
+/** Unload font chars info data (RAM) */
+declare function unloadFontData(glyphs: GlyphInfo, glyphCount: number): void;
 /** Unload font from GPU memory (VRAM) */
 declare function unloadFont(font: Font): void;
 /** Export font as code file, returns true on success */
@@ -1180,8 +1204,12 @@ declare function getGlyphInfo(font: Font, codepoint: number): GlyphInfo;
 declare function getGlyphAtlasRec(font: Font, codepoint: number): Rectangle;
 /** Load UTF-8 text encoded from codepoints array */
 declare function loadUTF8(codepoints: ArrayBuffer, length: number): string | null;
+/** Unload UTF-8 text encoded from codepoints array */
+declare function unloadUTF8(text: string | undefined | null): void;
 /** Load all codepoints from a UTF-8 text string, codepoints count returned by parameter */
 declare function loadCodepoints(text: string | undefined | null, count: { count: number } | null | undefined): ArrayBuffer | null;
+/** Unload codepoints data from memory */
+declare function unloadCodepoints(codepoints: int): void;
 /** Get total number of codepoints in a UTF-8 encoded string */
 declare function getCodepointCount(text: string | undefined | null): number;
 /** Get next codepoint in a UTF-8 encoded string, 0x3f('?') is returned on failure */
@@ -1418,6 +1446,8 @@ declare function waveCrop(wave: Wave, initFrame: number, finalFrame: number): vo
 declare function waveFormat(wave: Wave, sampleRate: number, sampleSize: number, channels: number): void;
 /** Load samples data from wave as a 32bit float data array */
 declare function loadWaveSamples(wave: Wave): ArrayBuffer | null;
+/** Unload samples data loaded with LoadWaveSamples() */
+declare function unloadWaveSamples(samples: ArrayBuffer): void;
 /** Load music stream from file */
 declare function loadMusicStream(fileName: string | undefined | null): Music;
 /** Load music stream from data */

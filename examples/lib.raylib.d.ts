@@ -614,6 +614,16 @@ declare function memAlloc(size: number): ArrayBuffer | null;
 declare function memRealloc(ptr: ArrayBuffer, size: number): ArrayBuffer | null;
 /** Internal memory free */
 declare function memFree(ptr: any): void;
+/** Set custom trace log */
+declare function setTraceLogCallback(callback: any): void;
+/** Set custom file binary data loader */
+declare function setLoadFileDataCallback(callback: any): void;
+/** Set custom file binary data saver */
+declare function setSaveFileDataCallback(callback: any): void;
+/** Set custom file text data loader */
+declare function setLoadFileTextCallback(callback: any): void;
+/** Set custom file text data saver */
+declare function setSaveFileTextCallback(callback: any): void;
 /** Load file data as byte array (read) */
 declare function loadFileData(fileName: string | undefined | null): ArrayBuffer;
 /** Unload file data allocated by LoadFileData() */
@@ -1220,16 +1230,26 @@ declare function getCodepointNext(text: string | undefined | null, codepointSize
 declare function getCodepointPrevious(text: string | undefined | null, codepointSize: { codepointSize: number } | null | undefined): number;
 /** Encode one codepoint into UTF-8 byte array (array length returned as parameter) */
 declare function codepointToUTF8(codepoint: number, utf8Size: { utf8Size: number } | null | undefined): string | undefined | null;
+/** Copy one string to another, returns bytes copied */
+declare function textCopy(dst: { text: string } | null | undefined, src: string | undefined | null): number;
 /** Check if two text string are equal */
 declare function textIsEqual(text1: string | undefined | null, text2: string | undefined | null): boolean;
 /** Get text length, checks for '\0' ending */
 declare function textLength(text: string | undefined | null): number;
+/** Text formatting with variables (sprintf() style) */
+declare function textFormat(text: string | undefined | null): string | undefined | null;
 /** Get a piece of a text string */
 declare function textSubtext(text: string | undefined | null, position: number, length: number): string | undefined | null;
 /** Replace text string (WARNING: memory must be freed!) */
 declare function textReplace(text: string | undefined | null, replace: string | undefined | null, by: string | undefined | null): string | undefined | null;
 /** Insert text in a position (WARNING: memory must be freed!) */
 declare function textInsert(text: string | undefined | null, insert: string | undefined | null, position: number): string | undefined | null;
+/** Join text strings with delimiter */
+declare function textJoin(textList: string[], delimiter: string | undefined | null): string | undefined | null;
+/** Split text into multiple strings */
+declare function textSplit(text: string | undefined | null, delimiter: string | null | undefined, count: { count: number } | null | undefined): string[];
+/** Append text at specific position and move cursor! */
+declare function textAppend(text: { text: string, position?: number } | null | undefined, append: string | undefined | null, position: { position: number } | null | undefined): void;
 /** Find first text occurrence within a string */
 declare function textFindIndex(text: string | undefined | null, find: string | undefined | null): number;
 /** Get upper case version of provided string */
@@ -1358,6 +1378,8 @@ declare function genMeshKnot(radius: number, size: number, radSeg: number, sides
 declare function genMeshHeightmap(heightmap: Image, size: Vector3): Mesh;
 /** Generate cubes-based map mesh from image data */
 declare function genMeshCubicmap(cubicmap: Image, cubeSize: Vector3): Mesh;
+/** Load materials from model file */
+declare function loadMaterials(fileName: string | undefined | null, materialCount: { materialCount: number } | null | undefined): Material[] | null;
 /** Load default material (Supports: DIFFUSE, SPECULAR, NORMAL maps) */
 declare function loadMaterialDefault(): Material;
 /** Check if a material is valid (shader assigned, map textures loaded in GPU) */
@@ -1368,8 +1390,18 @@ declare function unloadMaterial(material: Material): void;
 declare function setMaterialTexture(material: Material, mapType: number, texture: Texture): void;
 /** Set material for a mesh */
 declare function setModelMeshMaterial(model: Model, meshId: number, materialId: number): void;
+/** Load model animations from file */
+declare function loadModelAnimations(fileName: string | undefined | null, animCount: { animCount: number } | null | undefined): ModelAnimation[] | null;
+/** Update model animation pose (CPU) */
+declare function updateModelAnimation(model: Model, anim: ModelAnimation, frame: number): void;
 /** Update model animation mesh bone matrices (GPU skinning) */
 declare function updateModelAnimationBones(model: Model, anim: ModelAnimation, frame: number): void;
+/** Unload animation data */
+declare function unloadModelAnimation(anim: ModelAnimation): void;
+/** Unload animation array data */
+declare function unloadModelAnimations(animations: ModelAnimation[]): void;
+/** Check model animation skeleton match */
+declare function isModelAnimationValid(model: Model, anim: ModelAnimation): boolean;
 /** Check collision between two spheres */
 declare function checkCollisionSpheres(center1: Vector3, radius1: number, center2: Vector3, radius2: number): boolean;
 /** Check collision between two bounding boxes */
@@ -1508,6 +1540,16 @@ declare function setAudioStreamPitch(stream: AudioStream, pitch: number): void;
 declare function setAudioStreamPan(stream: AudioStream, pan: number): void;
 /** Default size for new audio streams */
 declare function setAudioStreamBufferSizeDefault(size: number): void;
+/** Audio thread callback to request new data */
+declare function setAudioStreamCallback(stream: AudioStream, callback: any): void;
+/** Attach audio stream processor to stream, receives the samples as 'float' */
+declare function attachAudioStreamProcessor(stream: AudioStream, processor: any): void;
+/** Detach audio stream processor from stream */
+declare function detachAudioStreamProcessor(stream: AudioStream, processor: any): void;
+/** Attach audio stream processor to the entire audio pipeline, receives the samples as 'float' */
+declare function attachAudioMixedProcessor(processor: any): void;
+/** Detach audio stream processor from the entire audio pipeline */
+declare function detachAudioMixedProcessor(processor: any): void;
 /** Clamp float value */
 declare function clamp(value: number, min: number, max: number): number;
 /** Calculate linear interpolation between two floats */

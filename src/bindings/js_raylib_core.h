@@ -3552,6 +3552,26 @@ static JSValue js_memFree(JSContext * ctx, JSValueConst this_val, int argc, JSVa
     return JS_UNDEFINED;
 }
 
+static JSValue js_setTraceLogCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_setLoadFileDataCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_setSaveFileDataCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_setLoadFileTextCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_setSaveFileTextCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
 static JSValue js_loadFileData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * fileName = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     int bytesRead;
@@ -7549,6 +7569,17 @@ static JSValue js_codepointToUTF8(JSContext * ctx, JSValueConst this_val, int ar
     return ret;
 }
 
+static JSValue js_textCopy(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    const char * src = (JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])) ? NULL : (const char *)JS_ToCString(ctx, argv[1]);
+    if(!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])) {
+        JS_SetPropertyStr(ctx, argv[0], "text", JS_NewString(ctx, src ? src : ""));
+    }
+    int bytes = src ? (int)strlen(src) : 0;
+    JS_FreeCString(ctx, src);
+    JSValue ret = JS_NewInt32(ctx, bytes);
+    return ret;
+}
+
 static JSValue js_textIsEqual(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * text1 = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     const char * text2 = (JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])) ? NULL : (const char *)JS_ToCString(ctx, argv[1]);
@@ -7564,6 +7595,13 @@ static JSValue js_textLength(JSContext * ctx, JSValueConst this_val, int argc, J
     unsigned int returnVal = TextLength(text);
     JS_FreeCString(ctx, text);
     JSValue ret = JS_NewUint32(ctx, returnVal);
+    return ret;
+}
+
+static JSValue js_textFormat(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    const char * text = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
+    JSValue ret = JS_NewString(ctx, text ? text : "");
+    JS_FreeCString(ctx, text);
     return ret;
 }
 
@@ -7603,6 +7641,84 @@ static JSValue js_textInsert(JSContext * ctx, JSValueConst this_val, int argc, J
     JSValue ret = JS_NewString(ctx, returnVal);
     MemFree((void *)returnVal);
     return ret;
+}
+
+static JSValue js_textJoin(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    JSValue joinFn = JS_GetPropertyStr(ctx, argv[0], "join");
+    if(JS_IsException(joinFn)) {
+        return JS_EXCEPTION;
+    }
+    JSValue joinArg = argv[1];
+    JSValue ret = JS_Call(ctx, joinFn, argv[0], 1, &joinArg);
+    JS_FreeValue(ctx, joinFn);
+    return ret;
+}
+
+static JSValue js_textSplit(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    JSValue splitFn = JS_GetPropertyStr(ctx, argv[0], "split");
+    if(JS_IsException(splitFn)) {
+        return JS_EXCEPTION;
+    }
+    JSValue splitArg = argv[1];
+    JSValue ret = JS_Call(ctx, splitFn, argv[0], 1, &splitArg);
+    JS_FreeValue(ctx, splitFn);
+    if(JS_IsException(ret)) {
+        return JS_EXCEPTION;
+    }
+    if(!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])) {
+        JSValue lengthJs = JS_GetPropertyStr(ctx, ret, "length");
+        int count = 0;
+        JS_ToInt32(ctx, &count, lengthJs);
+        JS_FreeValue(ctx, lengthJs);
+        JS_SetPropertyStr(ctx, argv[2], "count", JS_NewInt32(ctx, count));
+    }
+    return ret;
+}
+
+static JSValue js_textAppend(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    const char *base = "";
+    bool baseOwned = false;
+    JSValue textJs = JS_UNDEFINED;
+    if(!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])) {
+        textJs = JS_GetPropertyStr(ctx, argv[0], "text");
+        if(!JS_IsNull(textJs) && !JS_IsUndefined(textJs)) { base = JS_ToCString(ctx, textJs); baseOwned = true; };
+    }
+    const char * append = (JS_IsNull(argv[1]) || JS_IsUndefined(argv[1])) ? NULL : (const char *)JS_ToCString(ctx, argv[1]);
+    int position = 0;
+    if(!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])) {
+        JSValue positionJs = JS_GetPropertyStr(ctx, argv[2], "position");
+        JS_ToInt32(ctx, &position, positionJs);
+        JS_FreeValue(ctx, positionJs);
+    }
+    int baseLen = (int)strlen(base);
+    if(position < 0) {
+        position = 0;
+    }
+    if(position > baseLen) {
+        position = baseLen;
+    }
+    int appendLen = append ? (int)strlen(append) : 0;
+    int newLen = baseLen + appendLen;
+    char * merged = (char *)malloc(newLen + 1);
+    if(merged == NULL) {
+        return JS_EXCEPTION;
+    }
+    memcpy(merged, base, position);
+    memcpy(merged + position, append, appendLen);
+    memcpy(merged + position + appendLen, base + position, baseLen - position);
+    merged[newLen] = 0;
+    if(!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])) {
+        JS_SetPropertyStr(ctx, argv[0], "text", JS_NewString(ctx, merged));
+    }
+    position += appendLen;
+    if(!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])) {
+        JS_SetPropertyStr(ctx, argv[2], "position", JS_NewInt32(ctx, position));
+    }
+    if(baseOwned) JS_FreeCString(ctx, base);
+    JS_FreeValue(ctx, textJs);
+    JS_FreeCString(ctx, append);
+    free(merged);
+    return JS_UNDEFINED;
 }
 
 static JSValue js_textFindIndex(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -8586,6 +8702,30 @@ static JSValue js_genMeshCubicmap(JSContext * ctx, JSValueConst this_val, int ar
     return ret;
 }
 
+static JSValue js_loadMaterials(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    const char * fileName = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
+    int materialCount = 0;
+    Material * materials = LoadMaterials(fileName, &materialCount);
+    JS_FreeCString(ctx, fileName);
+    JSValue ret = JS_NULL;
+    if(materials != NULL) {
+        ret = JS_NewArray(ctx);
+        for(int i = 0; i < materialCount; i++) {
+            Material material = materials[i];
+            Material* item_ptr = (Material*)js_malloc(ctx, sizeof(Material));
+            *item_ptr = material;
+            JSValue item = JS_NewObjectClass(ctx, js_Material_class_id);
+            JS_SetOpaque(item, item_ptr);
+            JS_SetPropertyUint32(ctx, ret, i, item);
+        }
+        MemFree((void *)materials);
+    }
+    if(!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])) {
+        JS_SetPropertyStr(ctx, argv[1], "materialCount", JS_NewInt32(ctx, materialCount));
+    }
+    return ret;
+}
+
 static JSValue js_loadMaterialDefault(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     Material returnVal = LoadMaterialDefault();
     Material* ret_ptr = (Material*)js_malloc(ctx, sizeof(Material));
@@ -8635,6 +8775,43 @@ static JSValue js_setModelMeshMaterial(JSContext * ctx, JSValueConst this_val, i
     return JS_UNDEFINED;
 }
 
+static JSValue js_loadModelAnimations(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    const char * fileName = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
+    int animCount = 0;
+    ModelAnimation * animations = LoadModelAnimations(fileName, &animCount);
+    JS_FreeCString(ctx, fileName);
+    JSValue ret = JS_NULL;
+    if(animations != NULL) {
+        ret = JS_NewArray(ctx);
+        for(int i = 0; i < animCount; i++) {
+            ModelAnimation anim = animations[i];
+            ModelAnimation* item_ptr = (ModelAnimation*)js_malloc(ctx, sizeof(ModelAnimation));
+            *item_ptr = anim;
+            JSValue item = JS_NewObjectClass(ctx, js_ModelAnimation_class_id);
+            JS_SetOpaque(item, item_ptr);
+            JS_SetPropertyUint32(ctx, ret, i, item);
+        }
+        MemFree((void *)animations);
+    }
+    if(!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])) {
+        JS_SetPropertyStr(ctx, argv[1], "animCount", JS_NewInt32(ctx, animCount));
+    }
+    return ret;
+}
+
+static JSValue js_updateModelAnimation(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    Model* model_ptr = (Model*)JS_GetOpaque2(ctx, argv[0], js_Model_class_id);
+    if(model_ptr == NULL) return JS_EXCEPTION;
+    Model model = *model_ptr;
+    ModelAnimation* anim_ptr = (ModelAnimation*)JS_GetOpaque2(ctx, argv[1], js_ModelAnimation_class_id);
+    if(anim_ptr == NULL) return JS_EXCEPTION;
+    ModelAnimation anim = *anim_ptr;
+    int frame;
+    JS_ToInt32(ctx, &frame, argv[2]);
+    UpdateModelAnimation(model, anim, frame);
+    return JS_UNDEFINED;
+}
+
 static JSValue js_updateModelAnimationBones(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     Model* model_ptr = (Model*)JS_GetOpaque2(ctx, argv[0], js_Model_class_id);
     if(model_ptr == NULL) return JS_EXCEPTION;
@@ -8646,6 +8823,42 @@ static JSValue js_updateModelAnimationBones(JSContext * ctx, JSValueConst this_v
     JS_ToInt32(ctx, &frame, argv[2]);
     UpdateModelAnimationBones(model, anim, frame);
     return JS_UNDEFINED;
+}
+
+static JSValue js_unloadModelAnimation(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    ModelAnimation* anim_ptr = (ModelAnimation*)JS_GetOpaque2(ctx, argv[0], js_ModelAnimation_class_id);
+    if(anim_ptr == NULL) return JS_EXCEPTION;
+    ModelAnimation anim = *anim_ptr;
+    UnloadModelAnimation(anim);
+    return JS_UNDEFINED;
+}
+
+static JSValue js_unloadModelAnimations(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    JSValue lengthJs = JS_GetPropertyStr(ctx, argv[0], "length");
+    int animCount = 0;
+    JS_ToInt32(ctx, &animCount, lengthJs);
+    JS_FreeValue(ctx, lengthJs);
+    for(int i = 0; i < animCount; i++) {
+        JSValue animJs = JS_GetPropertyUint32(ctx, argv[0], i);
+        ModelAnimation* animPtr = (ModelAnimation*)JS_GetOpaque2(ctx, animJs, js_ModelAnimation_class_id);
+        if(animPtr != NULL) {
+            UnloadModelAnimation(*animPtr);
+        }
+        JS_FreeValue(ctx, animJs);
+    }
+    return JS_UNDEFINED;
+}
+
+static JSValue js_isModelAnimationValid(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    Model* model_ptr = (Model*)JS_GetOpaque2(ctx, argv[0], js_Model_class_id);
+    if(model_ptr == NULL) return JS_EXCEPTION;
+    Model model = *model_ptr;
+    ModelAnimation* anim_ptr = (ModelAnimation*)JS_GetOpaque2(ctx, argv[1], js_ModelAnimation_class_id);
+    if(anim_ptr == NULL) return JS_EXCEPTION;
+    ModelAnimation anim = *anim_ptr;
+    bool returnVal = IsModelAnimationValid(model, anim);
+    JSValue ret = JS_NewBool(ctx, returnVal);
+    return ret;
 }
 
 static JSValue js_checkCollisionSpheres(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -9390,6 +9603,26 @@ static JSValue js_setAudioStreamBufferSizeDefault(JSContext * ctx, JSValueConst 
     int size;
     JS_ToInt32(ctx, &size, argv[0]);
     SetAudioStreamBufferSizeDefault(size);
+    return JS_UNDEFINED;
+}
+
+static JSValue js_setAudioStreamCallback(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_attachAudioStreamProcessor(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_detachAudioStreamProcessor(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_attachAudioMixedProcessor(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_UNDEFINED;
+}
+
+static JSValue js_detachAudioMixedProcessor(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     return JS_UNDEFINED;
 }
 
@@ -12734,6 +12967,11 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("memAlloc",1,js_memAlloc),
     JS_CFUNC_DEF("memRealloc",2,js_memRealloc),
     JS_CFUNC_DEF("memFree",1,js_memFree),
+    JS_CFUNC_DEF("setTraceLogCallback",1,js_setTraceLogCallback),
+    JS_CFUNC_DEF("setLoadFileDataCallback",1,js_setLoadFileDataCallback),
+    JS_CFUNC_DEF("setSaveFileDataCallback",1,js_setSaveFileDataCallback),
+    JS_CFUNC_DEF("setLoadFileTextCallback",1,js_setLoadFileTextCallback),
+    JS_CFUNC_DEF("setSaveFileTextCallback",1,js_setSaveFileTextCallback),
     JS_CFUNC_DEF("loadFileData",1,js_loadFileData),
     JS_CFUNC_DEF("unloadFileData",1,js_unloadFileData),
     JS_CFUNC_DEF("saveFileData",3,js_saveFileData),
@@ -13037,11 +13275,16 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("getCodepointNext",2,js_getCodepointNext),
     JS_CFUNC_DEF("getCodepointPrevious",2,js_getCodepointPrevious),
     JS_CFUNC_DEF("codepointToUTF8",2,js_codepointToUTF8),
+    JS_CFUNC_DEF("textCopy",2,js_textCopy),
     JS_CFUNC_DEF("textIsEqual",2,js_textIsEqual),
     JS_CFUNC_DEF("textLength",1,js_textLength),
+    JS_CFUNC_DEF("textFormat",1,js_textFormat),
     JS_CFUNC_DEF("textSubtext",3,js_textSubtext),
     JS_CFUNC_DEF("textReplace",3,js_textReplace),
     JS_CFUNC_DEF("textInsert",3,js_textInsert),
+    JS_CFUNC_DEF("textJoin",2,js_textJoin),
+    JS_CFUNC_DEF("textSplit",3,js_textSplit),
+    JS_CFUNC_DEF("textAppend",3,js_textAppend),
     JS_CFUNC_DEF("textFindIndex",2,js_textFindIndex),
     JS_CFUNC_DEF("textToUpper",1,js_textToUpper),
     JS_CFUNC_DEF("textToLower",1,js_textToLower),
@@ -13106,12 +13349,18 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("genMeshKnot",4,js_genMeshKnot),
     JS_CFUNC_DEF("genMeshHeightmap",2,js_genMeshHeightmap),
     JS_CFUNC_DEF("genMeshCubicmap",2,js_genMeshCubicmap),
+    JS_CFUNC_DEF("loadMaterials",2,js_loadMaterials),
     JS_CFUNC_DEF("loadMaterialDefault",0,js_loadMaterialDefault),
     JS_CFUNC_DEF("isMaterialValid",1,js_isMaterialValid),
     JS_CFUNC_DEF("unloadMaterial",1,js_unloadMaterial),
     JS_CFUNC_DEF("setMaterialTexture",3,js_setMaterialTexture),
     JS_CFUNC_DEF("setModelMeshMaterial",3,js_setModelMeshMaterial),
+    JS_CFUNC_DEF("loadModelAnimations",2,js_loadModelAnimations),
+    JS_CFUNC_DEF("updateModelAnimation",3,js_updateModelAnimation),
     JS_CFUNC_DEF("updateModelAnimationBones",3,js_updateModelAnimationBones),
+    JS_CFUNC_DEF("unloadModelAnimation",1,js_unloadModelAnimation),
+    JS_CFUNC_DEF("unloadModelAnimations",1,js_unloadModelAnimations),
+    JS_CFUNC_DEF("isModelAnimationValid",2,js_isModelAnimationValid),
     JS_CFUNC_DEF("checkCollisionSpheres",4,js_checkCollisionSpheres),
     JS_CFUNC_DEF("checkCollisionBoxes",2,js_checkCollisionBoxes),
     JS_CFUNC_DEF("checkCollisionBoxSphere",3,js_checkCollisionBoxSphere),
@@ -13181,6 +13430,11 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("setAudioStreamPitch",2,js_setAudioStreamPitch),
     JS_CFUNC_DEF("setAudioStreamPan",2,js_setAudioStreamPan),
     JS_CFUNC_DEF("setAudioStreamBufferSizeDefault",1,js_setAudioStreamBufferSizeDefault),
+    JS_CFUNC_DEF("setAudioStreamCallback",2,js_setAudioStreamCallback),
+    JS_CFUNC_DEF("attachAudioStreamProcessor",2,js_attachAudioStreamProcessor),
+    JS_CFUNC_DEF("detachAudioStreamProcessor",2,js_detachAudioStreamProcessor),
+    JS_CFUNC_DEF("attachAudioMixedProcessor",1,js_attachAudioMixedProcessor),
+    JS_CFUNC_DEF("detachAudioMixedProcessor",1,js_detachAudioMixedProcessor),
     JS_CFUNC_DEF("clamp",3,js_clamp),
     JS_CFUNC_DEF("lerp",3,js_lerp),
     JS_CFUNC_DEF("normalize",3,js_normalize),

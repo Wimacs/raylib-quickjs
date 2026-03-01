@@ -443,11 +443,16 @@ function main(){
     getFunction(api.functions, "UnloadRandomSequence")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     
     // Callbacks not supported on JS
-    ignore("SetTraceLogCallback")
-    ignore("SetLoadFileDataCallback")
-    ignore("SetSaveFileDataCallback")
-    ignore("SetLoadFileTextCallback")
-    ignore("SetSaveFileTextCallback")
+    getFunction(api.functions, "SetTraceLogCallback")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "SetTraceLogCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "SetLoadFileDataCallback")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "SetLoadFileDataCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "SetSaveFileDataCallback")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "SetSaveFileDataCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "SetLoadFileTextCallback")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "SetLoadFileTextCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "SetSaveFileTextCallback")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "SetSaveFileTextCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
 
     // Files management functions
     const lfd = getFunction(api.functions, "LoadFileData")!
@@ -907,7 +912,7 @@ function main(){
             gen.statement("bool baseOwned = false")
             gen.statement("JSValue textJs = JS_UNDEFINED")
             const hasTextObj = gen.if("!JS_IsNull(argv[0]) && !JS_IsUndefined(argv[0])")
-            hasTextObj.call("JS_GetPropertyStr", ["ctx", "argv[0]", "\"text\""], { name: "textJs", type: "JSValue" })
+            hasTextObj.statement("textJs = JS_GetPropertyStr(ctx, argv[0], \"text\")")
             hasTextObj.statement("if(!JS_IsNull(textJs) && !JS_IsUndefined(textJs)) { base = JS_ToCString(ctx, textJs); baseOwned = true; }")
             gen.jsToC("const char *", "append", "argv[1]")
             gen.declare("position", "int", false, "0")
@@ -955,12 +960,77 @@ function main(){
             gen.returnExp("JS_UNDEFINED")
         }
     }
-    ignore("LoadMaterials")
-    ignore("LoadModelAnimations")
-    ignore("UpdateModelAnimation")
-    ignore("UnloadModelAnimation")
-    ignore("UnloadModelAnimations")
-    ignore("IsModelAnimationValid")
+    getFunction(api.functions, "LoadMaterials")!.params![1].binding = { jsType: "{ materialCount: number } | null | undefined" }
+    getFunction(api.functions, "LoadMaterials")!.binding = {
+        jsReturns: "Material[] | null",
+        body: gen => {
+            gen.jsToC("const char *", "fileName", "argv[0]")
+            gen.declare("materialCount", "int", false, "0")
+            gen.call("LoadMaterials", ["fileName", "&materialCount"], { type: "Material *", name: "materials" })
+            gen.jsCleanUpParameter("const char *", "fileName")
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasMaterials = gen.if("materials != NULL")
+            hasMaterials.statement("ret = JS_NewArray(ctx)")
+            hasMaterials.line("for(int i = 0; i < materialCount; i++) {")
+            hasMaterials.indent()
+            hasMaterials.declare("material", "Material", false, "materials[i]")
+            hasMaterials.jsToJs("Material", "item", "material", core.structLookup)
+            hasMaterials.call("JS_SetPropertyUint32", ["ctx", "ret", "i", "item"])
+            hasMaterials.unindent()
+            hasMaterials.line("}")
+            hasMaterials.call("MemFree", ["(void *)materials"])
+            const hasCount = gen.if("!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])")
+            hasCount.call("JS_SetPropertyStr", ["ctx", "argv[1]", "\"materialCount\"", "JS_NewInt32(ctx, materialCount)"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "LoadModelAnimations")!.params![1].binding = { jsType: "{ animCount: number } | null | undefined" }
+    getFunction(api.functions, "LoadModelAnimations")!.binding = {
+        jsReturns: "ModelAnimation[] | null",
+        body: gen => {
+            gen.jsToC("const char *", "fileName", "argv[0]")
+            gen.declare("animCount", "int", false, "0")
+            gen.call("LoadModelAnimations", ["fileName", "&animCount"], { type: "ModelAnimation *", name: "animations" })
+            gen.jsCleanUpParameter("const char *", "fileName")
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasAnims = gen.if("animations != NULL")
+            hasAnims.statement("ret = JS_NewArray(ctx)")
+            hasAnims.line("for(int i = 0; i < animCount; i++) {")
+            hasAnims.indent()
+            hasAnims.declare("anim", "ModelAnimation", false, "animations[i]")
+            hasAnims.jsToJs("ModelAnimation", "item", "anim", core.structLookup)
+            hasAnims.call("JS_SetPropertyUint32", ["ctx", "ret", "i", "item"])
+            hasAnims.unindent()
+            hasAnims.line("}")
+            hasAnims.call("MemFree", ["(void *)animations"])
+            const hasCount = gen.if("!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])")
+            hasCount.call("JS_SetPropertyStr", ["ctx", "argv[1]", "\"animCount\"", "JS_NewInt32(ctx, animCount)"])
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "UpdateModelAnimation")!.binding = {}
+    getFunction(api.functions, "UnloadModelAnimation")!.binding = {}
+    getFunction(api.functions, "UnloadModelAnimations")!.params![0].binding = { jsType: "ModelAnimation[]" }
+    getFunction(api.functions, "UnloadModelAnimations")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "UnloadModelAnimations")!.binding = {
+        body: gen => {
+            gen.call("JS_GetPropertyStr", ["ctx", "argv[0]", "\"length\""], { name: "lengthJs", type: "JSValue" })
+            gen.declare("animCount", "int", false, "0")
+            gen.call("JS_ToInt32", ["ctx", "&animCount", "lengthJs"])
+            gen.call("JS_FreeValue", ["ctx", "lengthJs"])
+            gen.line("for(int i = 0; i < animCount; i++) {")
+            gen.indent()
+            gen.call("JS_GetPropertyUint32", ["ctx", "argv[0]", "i"], { name: "animJs", type: "JSValue" })
+            gen.jsOpqToStructPtr("ModelAnimation", "animPtr", "animJs", core.structLookup["ModelAnimation"])
+            const hasAnim = gen.if("animPtr != NULL")
+            hasAnim.call("UnloadModelAnimation", ["*animPtr"])
+            gen.call("JS_FreeValue", ["ctx", "animJs"])
+            gen.unindent()
+            gen.line("}")
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
+    getFunction(api.functions, "IsModelAnimationValid")!.binding = {}
     getFunction(api.functions, "ExportWaveAsCode")!.binding = {}
 
     // Wave/Sound management functions
@@ -995,11 +1065,16 @@ function main(){
     getFunction(api.functions, "SetAudioStreamPitch")!.binding = {}
     getFunction(api.functions, "SetAudioStreamPan")!.binding = {}
     getFunction(api.functions, "SetAudioStreamBufferSizeDefault")!.binding = {}
-    ignore("SetAudioStreamCallback")
-    ignore("AttachAudioStreamProcessor")
-    ignore("DetachAudioStreamProcessor")
-    ignore("AttachAudioMixedProcessor")
-    ignore("DetachAudioMixedProcessor")
+    getFunction(api.functions, "SetAudioStreamCallback")!.params![1].binding = { jsType: "any" }
+    getFunction(api.functions, "SetAudioStreamCallback")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "AttachAudioStreamProcessor")!.params![1].binding = { jsType: "any" }
+    getFunction(api.functions, "AttachAudioStreamProcessor")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "DetachAudioStreamProcessor")!.params![1].binding = { jsType: "any" }
+    getFunction(api.functions, "DetachAudioStreamProcessor")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "AttachAudioMixedProcessor")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "AttachAudioMixedProcessor")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
+    getFunction(api.functions, "DetachAudioMixedProcessor")!.params![0].binding = { jsType: "any" }
+    getFunction(api.functions, "DetachAudioMixedProcessor")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
 
     ignore("Vector3OrthoNormalize")
     ignore("Vector3ToFloatV")

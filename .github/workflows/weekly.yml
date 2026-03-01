@@ -1,0 +1,106 @@
+name: Weekly Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with: 
+        submodules: true
+        
+    - name: Install libs
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install gcc-multilib
+        sudo apt-get install -y --no-install-recommends libglfw3 libglfw3-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libxext-dev libxfixes-dev
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Generate Artifacts
+      run: |
+        mkdir release
+        cp -v ./examples/lib.raylib.d.ts ./release
+        cp -v ./main.js ./release
+        cp -v ./rayjs ./release
+        cp -v ./readme.md ./release
+        tar -czvf rayjs_linux_x64.tar.gz release
+      
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: rayjs-linux
+        path: rayjs_linux_x64.tar.gz
+        
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with: 
+        submodules: true
+      
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Generate Artifacts
+      run: |
+        mkdir release
+        cp -v ./examples/lib.raylib.d.ts ./release
+        cp -v ./main.js ./release
+        cp -v ./rayjs ./release
+        cp -v ./readme.md ./release
+        tar -czvf rayjs_macos_universal.tar.gz release
+      
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: rayjs-macos
+        path: rayjs_macos_universal.tar.gz
+        
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with: 
+        submodules: true
+        
+    - name: Configure CMake
+      run: cmake -G "MinGW Makefiles" -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Generate Artifacts
+      run: |
+        mkdir release
+        copy /Y examples\lib.raylib.d.ts release\lib.raylib.d.ts
+        copy /Y main.js release\main.js
+        copy /Y rayjs.exe release\rayjs.exe
+        copy /Y readme.md release\readme.md
+        7z a ./rayjs_windows_x64.zip ./release
+        dir
+      shell: cmd
+      
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: rayjs-windows
+        path: rayjs_windows_x64.zip

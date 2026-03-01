@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "sdl.h": "c",
+        "vs.sc.mtl.bin.h": "c",
+        "embedded_shader.h": "c",
+        "common.h": "c",
+        "raylib.h": "c",
+        "glad.h": "c",
+        "lightmapper.h": "c",
+        "compare": "c",
+        "memory": "c",
+        "rlgl.h": "c",
+        "random": "c"
+    }
+}

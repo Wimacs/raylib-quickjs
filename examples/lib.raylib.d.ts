@@ -434,6 +434,8 @@ declare function minimizeWindow(): void;
 declare function restoreWindow(): void;
 /** Set icon for window (single image, RGBA 32bit) */
 declare function setWindowIcon(image: Image): void;
+/** Set icon for window (multiple images, RGBA 32bit) */
+declare function setWindowIcons(images: Image[]): void;
 /** Set title for window */
 declare function setWindowTitle(title: string | undefined | null): void;
 /** Set window position on screen */
@@ -450,6 +452,8 @@ declare function setWindowSize(width: number, height: number): void;
 declare function setWindowOpacity(opacity: number): void;
 /** Set window focused */
 declare function setWindowFocused(): void;
+/** Get native window handle */
+declare function getWindowHandle(): any;
 /** Get current screen width */
 declare function getScreenWidth(): number;
 /** Get current screen height */
@@ -1182,6 +1186,10 @@ declare function loadFontFromImage(image: Image, key: Color, firstChar: number):
 declare function loadFontFromMemory(fileType: string | undefined | null, fileData: ArrayBuffer, fontSize: number): Font;
 /** Check if a font is valid (font data loaded, WARNING: GPU texture not checked) */
 declare function isFontValid(font: Font): boolean;
+/** Load font data for further use */
+declare function loadFontData(fileData: ArrayBuffer, fontSize: number, codepoints: ArrayBuffer | null | undefined, codepointCount: number, type: number): GlyphInfo[] | null;
+/** Generate image font atlas using chars info */
+declare function genImageFontAtlas(glyphs: GlyphInfo[], fontSize: number, padding: number, packMethod: number): Image;
 /** Unload font chars info data (RAM) */
 declare function unloadFontData(glyphs: GlyphInfo, glyphCount: number): void;
 /** Unload font from GPU memory (VRAM) */

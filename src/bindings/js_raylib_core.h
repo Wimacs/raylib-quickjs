@@ -2728,6 +2728,31 @@ static JSValue js_setWindowIcon(JSContext * ctx, JSValueConst this_val, int argc
     return JS_UNDEFINED;
 }
 
+static JSValue js_setWindowIcons(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    JSValue lengthJs = JS_GetPropertyStr(ctx, argv[0], "length");
+    int count = 0;
+    JS_ToInt32(ctx, &count, lengthJs);
+    JS_FreeValue(ctx, lengthJs);
+    Image * icons = (Image *)malloc(sizeof(Image) * (count > 0 ? count : 1));
+    if(icons == NULL) {
+        return JS_EXCEPTION;
+    }
+    for(int i = 0; i < count; i++) {
+        JSValue iconJs = JS_GetPropertyUint32(ctx, argv[0], i);
+        Image* iconPtr = (Image*)JS_GetOpaque2(ctx, iconJs, js_Image_class_id);
+        if(iconPtr == NULL) {
+            JS_FreeValue(ctx, iconJs);
+            free(icons);
+            return JS_EXCEPTION;
+        }
+        icons[i] = *iconPtr;
+        JS_FreeValue(ctx, iconJs);
+    }
+    SetWindowIcons(icons, count);
+    free(icons);
+    return JS_UNDEFINED;
+}
+
 static JSValue js_setWindowTitle(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     const char * title = (JS_IsNull(argv[0]) || JS_IsUndefined(argv[0])) ? NULL : (const char *)JS_ToCString(ctx, argv[0]);
     SetWindowTitle(title);
@@ -2789,6 +2814,10 @@ static JSValue js_setWindowOpacity(JSContext * ctx, JSValueConst this_val, int a
 static JSValue js_setWindowFocused(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
     SetWindowFocused();
     return JS_UNDEFINED;
+}
+
+static JSValue js_getWindowHandle(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    return JS_NULL;
 }
 
 static JSValue js_getScreenWidth(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
@@ -7217,6 +7246,87 @@ static JSValue js_isFontValid(JSContext * ctx, JSValueConst this_val, int argc, 
     Font font = *font_ptr;
     bool returnVal = IsFontValid(font);
     JSValue ret = JS_NewBool(ctx, returnVal);
+    return ret;
+}
+
+static JSValue js_loadFontData(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    size_t fileData_size;
+    void * fileData_js = (void *)JS_GetArrayBuffer(ctx, &fileData_size, argv[0]);
+    if(fileData_js == NULL) {
+        return JS_EXCEPTION;
+    }
+    const unsigned char * fileData = malloc(fileData_size);
+    memcpy((void *)fileData, (const void *)fileData_js, fileData_size);
+    int fontSize;
+    JS_ToInt32(ctx, &fontSize, argv[1]);
+    int codepointCount;
+    JS_ToInt32(ctx, &codepointCount, argv[3]);
+    int * codepoints = NULL;
+    if(!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])) {
+        size_t codepointsSize;
+        void * codepointsBuffer = JS_GetArrayBuffer(ctx, &codepointsSize, argv[2]);
+        if(codepointsBuffer == NULL) {
+            return JS_EXCEPTION;
+        }
+        if(codepointsSize < ((size_t)codepointCount*sizeof(int))) {
+            return JS_EXCEPTION;
+        }
+        codepoints = (int *)codepointsBuffer;
+    }
+    int type;
+    JS_ToInt32(ctx, &type, argv[4]);
+    GlyphInfo * glyphs = LoadFontData(fileData, (int)fileData_size, fontSize, codepoints, codepointCount, type);
+    free((void *)fileData);
+    JSValue ret = JS_NULL;
+    if(glyphs != NULL) {
+        ret = JS_NewArray(ctx);
+        for(int i = 0; i < codepointCount; i++) {
+            GlyphInfo glyph = glyphs[i];
+            GlyphInfo* item_ptr = (GlyphInfo*)js_malloc(ctx, sizeof(GlyphInfo));
+            *item_ptr = glyph;
+            JSValue item = JS_NewObjectClass(ctx, js_GlyphInfo_class_id);
+            JS_SetOpaque(item, item_ptr);
+            JS_SetPropertyUint32(ctx, ret, i, item);
+        }
+        UnloadFontData(glyphs, codepointCount);
+    }
+    return ret;
+}
+
+static JSValue js_genImageFontAtlas(JSContext * ctx, JSValueConst this_val, int argc, JSValueConst * argv) {
+    JSValue lengthJs = JS_GetPropertyStr(ctx, argv[0], "length");
+    int glyphCount = 0;
+    JS_ToInt32(ctx, &glyphCount, lengthJs);
+    JS_FreeValue(ctx, lengthJs);
+    GlyphInfo * glyphs = (GlyphInfo *)malloc(sizeof(GlyphInfo) * (glyphCount > 0 ? glyphCount : 1));
+    if(glyphs == NULL) {
+        return JS_EXCEPTION;
+    }
+    for(int i = 0; i < glyphCount; i++) {
+        JSValue glyphJs = JS_GetPropertyUint32(ctx, argv[0], i);
+        GlyphInfo* glyphPtr = (GlyphInfo*)JS_GetOpaque2(ctx, glyphJs, js_GlyphInfo_class_id);
+        if(glyphPtr == NULL) {
+            JS_FreeValue(ctx, glyphJs);
+            free(glyphs);
+            return JS_EXCEPTION;
+        }
+        glyphs[i] = *glyphPtr;
+        JS_FreeValue(ctx, glyphJs);
+    }
+    int fontSize;
+    JS_ToInt32(ctx, &fontSize, argv[1]);
+    int padding;
+    JS_ToInt32(ctx, &padding, argv[2]);
+    int packMethod;
+    JS_ToInt32(ctx, &packMethod, argv[3]);
+    Rectangle * glyphRecs = NULL;
+    Image returnVal = GenImageFontAtlas(glyphs, &glyphRecs, glyphCount, fontSize, padding, packMethod);
+    if(glyphRecs != NULL) MemFree((void *)glyphRecs);
+    free(glyphs);
+    Image* ret_ptr = (Image*)js_malloc(ctx, sizeof(Image));
+    *ret_ptr = returnVal;
+    JSValue ret = JS_NewObjectClass(ctx, js_Image_class_id);
+    JS_SetOpaque(ret, ret_ptr);
     return ret;
 }
 
@@ -12877,6 +12987,7 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("minimizeWindow",0,js_minimizeWindow),
     JS_CFUNC_DEF("restoreWindow",0,js_restoreWindow),
     JS_CFUNC_DEF("setWindowIcon",1,js_setWindowIcon),
+    JS_CFUNC_DEF("setWindowIcons",1,js_setWindowIcons),
     JS_CFUNC_DEF("setWindowTitle",1,js_setWindowTitle),
     JS_CFUNC_DEF("setWindowPosition",2,js_setWindowPosition),
     JS_CFUNC_DEF("setWindowMonitor",1,js_setWindowMonitor),
@@ -12885,6 +12996,7 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("setWindowSize",2,js_setWindowSize),
     JS_CFUNC_DEF("setWindowOpacity",1,js_setWindowOpacity),
     JS_CFUNC_DEF("setWindowFocused",0,js_setWindowFocused),
+    JS_CFUNC_DEF("getWindowHandle",0,js_getWindowHandle),
     JS_CFUNC_DEF("getScreenWidth",0,js_getScreenWidth),
     JS_CFUNC_DEF("getScreenHeight",0,js_getScreenHeight),
     JS_CFUNC_DEF("getRenderWidth",0,js_getRenderWidth),
@@ -13251,6 +13363,8 @@ static const JSCFunctionListEntry js_raylib_core_funcs[] = {
     JS_CFUNC_DEF("loadFontFromImage",3,js_loadFontFromImage),
     JS_CFUNC_DEF("loadFontFromMemory",3,js_loadFontFromMemory),
     JS_CFUNC_DEF("isFontValid",1,js_isFontValid),
+    JS_CFUNC_DEF("loadFontData",5,js_loadFontData),
+    JS_CFUNC_DEF("genImageFontAtlas",4,js_genImageFontAtlas),
     JS_CFUNC_DEF("unloadFontData",2,js_unloadFontData),
     JS_CFUNC_DEF("unloadFont",1,js_unloadFont),
     JS_CFUNC_DEF("exportFontAsCode",2,js_exportFontAsCode),

@@ -347,8 +347,34 @@ function main(){
     }
 
     getFunction(api.functions, "EndDrawing")!.binding = { after: gen => gen.call("app_update_quickjs", []) }
-    ignore("SetWindowIcons")
-    ignore("GetWindowHandle")
+    getFunction(api.functions, "SetWindowIcons")!.params![0].binding = { jsType: "Image[]" }
+    getFunction(api.functions, "SetWindowIcons")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "SetWindowIcons")!.binding = {
+        body: gen => {
+            gen.call("JS_GetPropertyStr", ["ctx", "argv[0]", "\"length\""], { name: "lengthJs", type: "JSValue" })
+            gen.declare("count", "int", false, "0")
+            gen.call("JS_ToInt32", ["ctx", "&count", "lengthJs"])
+            gen.call("JS_FreeValue", ["ctx", "lengthJs"])
+            gen.declare("icons", "Image *", false, "(Image *)malloc(sizeof(Image) * (count > 0 ? count : 1))")
+            gen.if("icons == NULL").returnExp("JS_EXCEPTION")
+            gen.line("for(int i = 0; i < count; i++) {")
+            gen.indent()
+            gen.call("JS_GetPropertyUint32", ["ctx", "argv[0]", "i"], { name: "iconJs", type: "JSValue" })
+            gen.jsOpqToStructPtr("Image", "iconPtr", "iconJs", core.structLookup["Image"])
+            const invalidIcon = gen.if("iconPtr == NULL")
+            invalidIcon.call("JS_FreeValue", ["ctx", "iconJs"])
+            invalidIcon.call("free", ["icons"])
+            invalidIcon.returnExp("JS_EXCEPTION")
+            gen.statement("icons[i] = *iconPtr")
+            gen.call("JS_FreeValue", ["ctx", "iconJs"])
+            gen.unindent()
+            gen.line("}")
+            gen.call("SetWindowIcons", ["icons", "count"])
+            gen.call("free", ["icons"])
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
+    getFunction(api.functions, "GetWindowHandle")!.binding = { jsReturns: "any", body: gen => gen.returnExp("JS_NULL") }
 
     // Custom frame control functions are exposed for advanced frame-loop control.
     
@@ -785,8 +811,74 @@ function main(){
     lffm.params![4].binding = { ignore: true }
     lffm.params![5].binding = { ignore: true }
     lffm.binding = { customizeCall: "Font returnVal = LoadFontFromMemory(fileType, fileData, (int)fileData_size, fontSize, NULL, 0);" }
-    ignore("LoadFontData")
-    ignore("GenImageFontAtlas")
+    const lfdData = getFunction(api.functions, "LoadFontData")!
+    lfdData.params![1].binding = { ignore: true }
+    lfdData.params![3].binding = { jsType: "ArrayBuffer | null | undefined" }
+    lfdData.binding = {
+        jsReturns: "GlyphInfo[] | null",
+        body: gen => {
+            gen.jsToC("const unsigned char *", "fileData", "argv[0]")
+            gen.jsToC("int", "fontSize", "argv[1]")
+            gen.jsToC("int", "codepointCount", "argv[3]")
+            gen.declare("codepoints", "int *", false, "NULL")
+            const hasCodepoints = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            hasCodepoints.declare("codepointsSize", "size_t")
+            hasCodepoints.declare("codepointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &codepointsSize, argv[2])")
+            hasCodepoints.if("codepointsBuffer == NULL").returnExp("JS_EXCEPTION")
+            hasCodepoints.if("codepointsSize < ((size_t)codepointCount*sizeof(int))").returnExp("JS_EXCEPTION")
+            hasCodepoints.statement("codepoints = (int *)codepointsBuffer")
+            gen.jsToC("int", "type", "argv[4]")
+            gen.call("LoadFontData", ["fileData", "(int)fileData_size", "fontSize", "codepoints", "codepointCount", "type"], { type: "GlyphInfo *", name: "glyphs" })
+            gen.jsCleanUpParameter("const unsigned char *", "fileData")
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasGlyphs = gen.if("glyphs != NULL")
+            hasGlyphs.statement("ret = JS_NewArray(ctx)")
+            hasGlyphs.line("for(int i = 0; i < codepointCount; i++) {")
+            hasGlyphs.indent()
+            hasGlyphs.declare("glyph", "GlyphInfo", false, "glyphs[i]")
+            hasGlyphs.jsToJs("GlyphInfo", "item", "glyph", core.structLookup)
+            hasGlyphs.call("JS_SetPropertyUint32", ["ctx", "ret", "i", "item"])
+            hasGlyphs.unindent()
+            hasGlyphs.line("}")
+            hasGlyphs.call("UnloadFontData", ["glyphs", "codepointCount"])
+            gen.returnExp("ret")
+        }
+    }
+    const gifa = getFunction(api.functions, "GenImageFontAtlas")!
+    gifa.params![0].binding = { jsType: "GlyphInfo[]" }
+    gifa.params![1].binding = { ignore: true }
+    gifa.params![2].binding = { ignore: true }
+    gifa.binding = {
+        body: gen => {
+            gen.call("JS_GetPropertyStr", ["ctx", "argv[0]", "\"length\""], { name: "lengthJs", type: "JSValue" })
+            gen.declare("glyphCount", "int", false, "0")
+            gen.call("JS_ToInt32", ["ctx", "&glyphCount", "lengthJs"])
+            gen.call("JS_FreeValue", ["ctx", "lengthJs"])
+            gen.declare("glyphs", "GlyphInfo *", false, "(GlyphInfo *)malloc(sizeof(GlyphInfo) * (glyphCount > 0 ? glyphCount : 1))")
+            gen.if("glyphs == NULL").returnExp("JS_EXCEPTION")
+            gen.line("for(int i = 0; i < glyphCount; i++) {")
+            gen.indent()
+            gen.call("JS_GetPropertyUint32", ["ctx", "argv[0]", "i"], { name: "glyphJs", type: "JSValue" })
+            gen.jsOpqToStructPtr("GlyphInfo", "glyphPtr", "glyphJs", core.structLookup["GlyphInfo"])
+            const invalidGlyph = gen.if("glyphPtr == NULL")
+            invalidGlyph.call("JS_FreeValue", ["ctx", "glyphJs"])
+            invalidGlyph.call("free", ["glyphs"])
+            invalidGlyph.returnExp("JS_EXCEPTION")
+            gen.statement("glyphs[i] = *glyphPtr")
+            gen.call("JS_FreeValue", ["ctx", "glyphJs"])
+            gen.unindent()
+            gen.line("}")
+            gen.jsToC("int", "fontSize", "argv[1]")
+            gen.jsToC("int", "padding", "argv[2]")
+            gen.jsToC("int", "packMethod", "argv[3]")
+            gen.declare("glyphRecs", "Rectangle *", false, "NULL")
+            gen.call("GenImageFontAtlas", ["glyphs", "&glyphRecs", "glyphCount", "fontSize", "padding", "packMethod"], { type: "Image", name: "returnVal" })
+            gen.statement("if(glyphRecs != NULL) MemFree((void *)glyphRecs)")
+            gen.call("free", ["glyphs"])
+            gen.jsToJs("Image", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
     getFunction(api.functions, "UnloadFontData")!.binding = { body: gen => gen.returnExp("JS_UNDEFINED"), jsReturns: "void" }
     getFunction(api.functions, "ExportFontAsCode")!.binding = {}
     getFunction(api.functions, "DrawTextCodepoints")!.params![1].binding = { jsType: "ArrayBuffer" }

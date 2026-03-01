@@ -1,6 +1,6 @@
 # Binding Coverage Snapshot
 
-- Generated: 2026-03-01T09:04:42.479Z
+- Generated: 2026-03-01T09:26:09.012Z
 - Raylib API baseline: `thirdparty/raylib/parser/output/raylib_api.json`
 - Type declarations source: `examples/lib.raylib.d.ts`
 

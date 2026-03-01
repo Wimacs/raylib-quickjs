@@ -121,6 +121,10 @@ Barebones example project on how to structure a project that uses Javascript
 ```
 Shows how to create a mesh from Javascript ArrayBuffers
 ```
+./rayjs examples/binding_full_smoke.js
+```
+Comprehensive binding smoke test. It exercises a wide API surface, reports pass/fail counts in-window and logs missing/failed calls without aborting the whole run.
+```
 ./rayjs examples/shaders/js_shaders_gradient_lighting.js
 ```
 Creates a gradient and uses it as lighting for a 3d scene

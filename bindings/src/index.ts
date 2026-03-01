@@ -350,11 +350,7 @@ function main(){
     ignore("SetWindowIcons")
     ignore("GetWindowHandle")
 
-    // Custom frame control functions
-    // NOT SUPPORTED BECAUSE NEEDS COMPILER FLAG
-    ignore("SwapScreenBuffer")
-    ignore("PollInputEvents")
-    ignore("WaitTime")
+    // Custom frame control functions are exposed for advanced frame-loop control.
     
     //ignore("BeginVrStereoMode")
     //ignore("EndVrStereoMode")
@@ -389,7 +385,7 @@ function main(){
         gen.call("SetShaderValue", ["shader","locIndex","value","uniformType"])
         gen.returnExp("JS_UNDEFINED")
     }} 
-    ignore("SetShaderValueV")
+    getFunction(api.functions, "SetShaderValueV")!.params![2].binding = { typeAlias: "const void *", jsType: "ArrayBuffer" }
 
     const traceLog = getFunction(api.functions, "TraceLog")!
     traceLog.params?.pop()
@@ -426,7 +422,18 @@ function main(){
     
     // TODO: SaveFileData works but unnecessary makes copy of memory
     getFunction(api.functions, "SaveFileData")!.binding = { }
-    ignore("ExportDataAsCode")
+    getFunction(api.functions, "ExportDataAsCode")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "ExportDataAsCode")!.binding = {
+        body: gen => {
+            gen.jsToC("const unsigned char *", "data", "argv[0]")
+            gen.jsToC("const char *", "fileName", "argv[1]")
+            gen.call("ExportDataAsCode", ["data", "(int)data_size", "fileName"], { type: "bool", name: "returnVal" })
+            gen.jsCleanUpParameter("const unsigned char *", "data")
+            gen.jsCleanUpParameter("const char *", "fileName")
+            gen.jsToJs("bool", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
     getFunction(api.functions, "LoadFileText")!.binding = { after: gen => gen.call("UnloadFileText", ["returnVal"]) } 
     getFunction(api.functions, "SaveFileText")!.params![1].binding = { typeAlias: "const char *" } 
     ignore("UnloadFileText")
@@ -470,21 +477,178 @@ function main(){
     ignore("UnloadDroppedFiles")
     
     // Compression/encoding functionality
-    ignore("CompressData")
-    ignore("DecompressData")
-    ignore("EncodeDataBase64")
-    ignore("DecodeDataBase64")
-    ignore("ComputeMD5")
-    ignore("ComputeSHA1")
+    getFunction(api.functions, "CompressData")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "CompressData")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "CompressData")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("const unsigned char *", "data", "argv[0]")
+            gen.declare("compDataSize", "int", false, "0")
+            gen.call("CompressData", ["data", "(int)data_size", "&compDataSize"], { type: "unsigned char *", name: "compData" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasData = gen.if("compData != NULL")
+            hasData.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)compData, compDataSize)")
+            hasData.call("MemFree", ["compData"])
+            gen.jsCleanUpParameter("const unsigned char *", "data")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "DecompressData")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "DecompressData")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "DecompressData")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("const unsigned char *", "compData", "argv[0]")
+            gen.declare("dataSize", "int", false, "0")
+            gen.call("DecompressData", ["compData", "(int)compData_size", "&dataSize"], { type: "unsigned char *", name: "data" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasData = gen.if("data != NULL")
+            hasData.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)data, dataSize)")
+            hasData.call("MemFree", ["data"])
+            gen.jsCleanUpParameter("const unsigned char *", "compData")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "EncodeDataBase64")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "EncodeDataBase64")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "EncodeDataBase64")!.binding = {
+        jsReturns: "string | null",
+        body: gen => {
+            gen.jsToC("const unsigned char *", "data", "argv[0]")
+            gen.declare("outputSize", "int", false, "0")
+            gen.call("EncodeDataBase64", ["data", "(int)data_size", "&outputSize"], { type: "char *", name: "encodedData" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasText = gen.if("encodedData != NULL")
+            hasText.statement("ret = JS_NewStringLen(ctx, encodedData, outputSize)")
+            hasText.call("MemFree", ["encodedData"])
+            gen.jsCleanUpParameter("const unsigned char *", "data")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "DecodeDataBase64")!.params![0].binding = { jsType: "string | null | undefined" }
+    getFunction(api.functions, "DecodeDataBase64")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "DecodeDataBase64")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("const char *", "base64Data", "argv[0]")
+            gen.declare("outputSize", "int", false, "0")
+            gen.call("DecodeDataBase64", ["(const unsigned char *)base64Data", "&outputSize"], { type: "unsigned char *", name: "decodedData" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasData = gen.if("decodedData != NULL")
+            hasData.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)decodedData, outputSize)")
+            hasData.call("MemFree", ["decodedData"])
+            gen.jsCleanUpParameter("const char *", "base64Data")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "ComputeMD5")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "ComputeMD5")!.binding = {
+        jsReturns: "ArrayBuffer",
+        body: gen => {
+            gen.jsToC("unsigned char *", "data", "argv[0]")
+            gen.call("ComputeMD5", ["data", "(int)data_size"], { type: "unsigned int *", name: "hash" })
+            gen.statement("JSValue ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)hash, 4*sizeof(unsigned int))")
+            gen.jsCleanUpParameter("unsigned char *", "data")
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "ComputeSHA1")!.params![1].binding = { ignore: true }
+    getFunction(api.functions, "ComputeSHA1")!.binding = {
+        jsReturns: "ArrayBuffer",
+        body: gen => {
+            gen.jsToC("unsigned char *", "data", "argv[0]")
+            gen.call("ComputeSHA1", ["data", "(int)data_size"], { type: "unsigned int *", name: "hash" })
+            gen.statement("JSValue ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)hash, 5*sizeof(unsigned int))")
+            gen.jsCleanUpParameter("unsigned char *", "data")
+            gen.returnExp("ret")
+        }
+    }
 
-    ignore("DrawLineStrip")
-    ignore("DrawTriangleFan")
-    ignore("DrawTriangleStrip")
-    ignore("CheckCollisionPointPoly")
-    ignore("CheckCollisionLines")
-    ignore("LoadImageAnim")
-    ignore("LoadImageAnimFromMemory")
-    ignore("ExportImageAsCode")
+    const bindVector2DrawCall = (name: string) => {
+        getFunction(api.functions, name)!.params![0].binding = { jsType: "ArrayBuffer" }
+        getFunction(api.functions, name)!.binding = {
+            body: gen => {
+                gen.declare("pointsSize", "size_t")
+                gen.declare("pointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &pointsSize, argv[0])")
+                gen.if("pointsBuffer == NULL").returnExp("JS_EXCEPTION")
+                gen.declare("points", "const Vector2 *", false, "(const Vector2 *)pointsBuffer")
+                gen.jsToC("int", "pointCount", "argv[1]", core.structLookup)
+                gen.jsToC("Color", "color", "argv[2]", core.structLookup)
+                gen.if("pointsSize < ((size_t)pointCount*sizeof(Vector2))").returnExp("JS_EXCEPTION")
+                gen.call(name, ["points", "pointCount", "color"])
+                gen.returnExp("JS_UNDEFINED")
+            }
+        }
+    }
+    bindVector2DrawCall("DrawLineStrip")
+    bindVector2DrawCall("DrawTriangleFan")
+    bindVector2DrawCall("DrawTriangleStrip")
+
+    getFunction(api.functions, "CheckCollisionPointPoly")!.params![1].binding = { jsType: "ArrayBuffer" }
+    getFunction(api.functions, "CheckCollisionPointPoly")!.binding = {
+        body: gen => {
+            gen.jsToC("Vector2", "point", "argv[0]", core.structLookup)
+            gen.declare("pointsSize", "size_t")
+            gen.declare("pointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &pointsSize, argv[1])")
+            gen.if("pointsBuffer == NULL").returnExp("JS_EXCEPTION")
+            gen.declare("points", "const Vector2 *", false, "(const Vector2 *)pointsBuffer")
+            gen.jsToC("int", "pointCount", "argv[2]", core.structLookup)
+            gen.if("pointsSize < ((size_t)pointCount*sizeof(Vector2))").returnExp("JS_EXCEPTION")
+            gen.call("CheckCollisionPointPoly", ["point", "points", "pointCount"], { type: "bool", name: "returnVal" })
+            gen.jsToJs("bool", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "CheckCollisionLines")!.params![4].binding = { jsType: "{ x: number, y: number } | null | undefined" }
+    getFunction(api.functions, "CheckCollisionLines")!.binding = {
+        body: gen => {
+            gen.jsToC("Vector2", "startPos1", "argv[0]", core.structLookup)
+            gen.jsToC("Vector2", "endPos1", "argv[1]", core.structLookup)
+            gen.jsToC("Vector2", "startPos2", "argv[2]", core.structLookup)
+            gen.jsToC("Vector2", "endPos2", "argv[3]", core.structLookup)
+            gen.statement("bool hasCollisionPoint = !JS_IsNull(argv[4]) && !JS_IsUndefined(argv[4])")
+            gen.declare("collisionPoint", "Vector2")
+            gen.declare("collisionPointPtr", "Vector2 *", false, "hasCollisionPoint ? &collisionPoint : NULL")
+            gen.call("CheckCollisionLines", ["startPos1", "endPos1", "startPos2", "endPos2", "collisionPointPtr"], { type: "bool", name: "hit" })
+            const hasPoint = gen.if("hasCollisionPoint")
+            hasPoint.call("JS_SetPropertyStr", ["ctx", "argv[4]", "\"x\"", "JS_NewFloat64(ctx, collisionPoint.x)"])
+            hasPoint.call("JS_SetPropertyStr", ["ctx", "argv[4]", "\"y\"", "JS_NewFloat64(ctx, collisionPoint.y)"])
+            gen.jsToJs("bool", "ret", "hit", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
+    // LoadImageAnim/LoadImageAnimFromMemory expose frames as out-parameter object: { frames: number }
+    getFunction(api.functions, "ExportImageAsCode")!.binding = {}
+
+    getFunction(api.functions, "LoadImageAnim")!.params![1].binding = { jsType: "{ frames: number } | null | undefined" }
+    getFunction(api.functions, "LoadImageAnim")!.binding = {
+        body: gen => {
+            gen.jsToC("const char *", "fileName", "argv[0]")
+            gen.declare("frames", "int", false, "0")
+            gen.call("LoadImageAnim", ["fileName", "&frames"], { type: "Image", name: "returnVal" })
+            gen.jsCleanUpParameter("const char *", "fileName")
+            const hasFrames = gen.if("!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])")
+            hasFrames.call("JS_SetPropertyStr", ["ctx", "argv[1]", "\"frames\"", "JS_NewInt32(ctx, frames)"])
+            gen.jsToJs("Image", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "LoadImageAnimFromMemory")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "LoadImageAnimFromMemory")!.params![3].binding = { jsType: "{ frames: number } | null | undefined" }
+    getFunction(api.functions, "LoadImageAnimFromMemory")!.binding = {
+        body: gen => {
+            gen.jsToC("const char *", "fileType", "argv[0]")
+            gen.jsToC("const unsigned char *", "fileData", "argv[1]")
+            gen.declare("frames", "int", false, "0")
+            gen.call("LoadImageAnimFromMemory", ["fileType", "fileData", "(int)fileData_size", "&frames"], { type: "Image", name: "returnVal" })
+            gen.jsCleanUpParameter("const char *", "fileType")
+            gen.jsCleanUpParameter("const unsigned char *", "fileData")
+            const hasFrames = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            hasFrames.call("JS_SetPropertyStr", ["ctx", "argv[2]", "\"frames\"", "JS_NewInt32(ctx, frames)"])
+            gen.jsToJs("Image", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
 
     getFunction(api.functions, "LoadImageColors")!.binding = {
         jsReturns: "ArrayBuffer",
@@ -497,64 +661,208 @@ function main(){
         }
     }
 
-    ignore("LoadImagePalette")
+    getFunction(api.functions, "ExportImageToMemory")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "ExportImageToMemory")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("Image", "image", "argv[0]", core.structLookup)
+            gen.jsToC("const char *", "fileType", "argv[1]")
+            gen.declare("fileSize", "int", false, "0")
+            gen.call("ExportImageToMemory", ["image", "fileType", "&fileSize"], { type: "unsigned char *", name: "data" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasData = gen.if("data != NULL")
+            hasData.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)data, fileSize)")
+            hasData.call("MemFree", ["data"])
+            gen.jsCleanUpParameter("const char *", "fileType")
+            gen.returnExp("ret")
+        }
+    }
+
+    getFunction(api.functions, "LoadImagePalette")!.params![2].binding = { jsType: "{ colorCount: number } | null | undefined" }
+    getFunction(api.functions, "LoadImagePalette")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("Image", "image", "argv[0]", core.structLookup)
+            gen.jsToC("int", "maxPaletteSize", "argv[1]", core.structLookup)
+            gen.declare("colorCount", "int", false, "0")
+            gen.call("LoadImagePalette", ["image", "maxPaletteSize", "&colorCount"], { name: "colors", type: "Color *" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasColors = gen.if("colors != NULL")
+            hasColors.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t*)colors, colorCount*sizeof(Color))")
+            hasColors.call("UnloadImagePalette", ["colors"])
+            const hasCount = gen.if("!JS_IsNull(argv[2]) && !JS_IsUndefined(argv[2])")
+            hasCount.call("JS_SetPropertyStr", ["ctx", "argv[2]", "\"colorCount\"", "JS_NewInt32(ctx, colorCount)"])
+            gen.returnExp("ret")
+        }
+    }
     ignore("UnloadImageColors")
     ignore("UnloadImagePalette")
-    ignore("GetPixelColor")
-    ignore("SetPixelColor")
+    getFunction(api.functions, "GetPixelColor")!.binding = {
+        body: gen => {
+            gen.declare("srcSize", "size_t")
+            gen.declare("srcPtr", "void *", false, "JS_GetArrayBuffer(ctx, &srcSize, argv[0])")
+            gen.if("srcPtr == NULL").returnExp("JS_EXCEPTION")
+            gen.jsToC("int", "format", "argv[1]", core.structLookup)
+            gen.call("GetPixelDataSize", ["1", "1", "format"], { type: "int", name: "requiredSize" })
+            gen.if("srcSize < (size_t)requiredSize").returnExp("JS_EXCEPTION")
+            gen.call("GetPixelColor", ["srcPtr", "format"], { type: "Color", name: "returnVal" })
+            gen.jsToJs("Color", "ret", "returnVal", core.structLookup)
+            gen.returnExp("ret")
+        }
+    }
+    getFunction(api.functions, "SetPixelColor")!.binding = {
+        body: gen => {
+            gen.declare("dstSize", "size_t")
+            gen.declare("dstPtr", "void *", false, "JS_GetArrayBuffer(ctx, &dstSize, argv[0])")
+            gen.if("dstPtr == NULL").returnExp("JS_EXCEPTION")
+            gen.jsToC("Color", "color", "argv[1]", core.structLookup)
+            gen.jsToC("int", "format", "argv[2]", core.structLookup)
+            gen.call("GetPixelDataSize", ["1", "1", "format"], { type: "int", name: "requiredSize" })
+            gen.if("dstSize < (size_t)requiredSize").returnExp("JS_EXCEPTION")
+            gen.call("SetPixelColor", ["dstPtr", "color", "format"])
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
+    getFunction(api.functions, "ImageKernelConvolution")!.params![1].binding = { typeAlias: "float *", jsType: "ArrayBuffer" }
 
     const lfx = getFunction(api.functions, "LoadFontEx")!
     lfx.params![2].binding = { ignore: true }
     lfx.params![3].binding = { ignore: true }
     lfx.binding = { customizeCall: "Font returnVal = LoadFontEx(fileName, fontSize, NULL, 0);" }
 
-    ignore("LoadFontFromMemory")
+    const lffm = getFunction(api.functions, "LoadFontFromMemory")!
+    lffm.params![2].binding = { ignore: true }
+    lffm.params![4].binding = { ignore: true }
+    lffm.params![5].binding = { ignore: true }
+    lffm.binding = { customizeCall: "Font returnVal = LoadFontFromMemory(fileType, fileData, (int)fileData_size, fontSize, NULL, 0);" }
     ignore("LoadFontData")
     ignore("GenImageFontAtlas")
     ignore("UnloadFontData")
-    ignore("ExportFontAsCode")
-    ignore("DrawTextCodepoints")
-    ignore("GetGlyphInfo")
-    ignore("LoadUTF8")
+    getFunction(api.functions, "ExportFontAsCode")!.binding = {}
+    getFunction(api.functions, "DrawTextCodepoints")!.params![1].binding = { jsType: "ArrayBuffer" }
+    getFunction(api.functions, "DrawTextCodepoints")!.binding = {
+        body: gen => {
+            gen.jsToC("Font", "font", "argv[0]", core.structLookup)
+            gen.declare("codepointsSize", "size_t")
+            gen.declare("codepointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &codepointsSize, argv[1])")
+            gen.if("codepointsBuffer == NULL").returnExp("JS_EXCEPTION")
+            gen.declare("codepoints", "const int *", false, "(const int *)codepointsBuffer")
+            gen.jsToC("int", "codepointCount", "argv[2]", core.structLookup)
+            gen.jsToC("Vector2", "position", "argv[3]", core.structLookup)
+            gen.jsToC("float", "fontSize", "argv[4]", core.structLookup)
+            gen.jsToC("float", "spacing", "argv[5]", core.structLookup)
+            gen.jsToC("Color", "tint", "argv[6]", core.structLookup)
+            gen.if("codepointsSize < ((size_t)codepointCount*sizeof(int))").returnExp("JS_EXCEPTION")
+            gen.call("DrawTextCodepoints", ["font", "codepoints", "codepointCount", "position", "fontSize", "spacing", "tint"])
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
+    getFunction(api.functions, "GetGlyphInfo")!.binding = {}
+    getFunction(api.functions, "LoadUTF8")!.params![0].binding = { jsType: "ArrayBuffer" }
+    getFunction(api.functions, "LoadUTF8")!.binding = {
+        jsReturns: "string | null",
+        body: gen => {
+            gen.declare("codepointsSize", "size_t")
+            gen.declare("codepointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &codepointsSize, argv[0])")
+            gen.if("codepointsBuffer == NULL").returnExp("JS_EXCEPTION")
+            gen.declare("codepoints", "const int *", false, "(const int *)codepointsBuffer")
+            gen.jsToC("int", "length", "argv[1]", core.structLookup)
+            gen.if("codepointsSize < ((size_t)length*sizeof(int))").returnExp("JS_EXCEPTION")
+            gen.call("LoadUTF8", ["codepoints", "length"], { type: "char *", name: "text" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasText = gen.if("text != NULL")
+            hasText.statement("ret = JS_NewString(ctx, text)")
+            hasText.call("UnloadUTF8", ["text"])
+            gen.returnExp("ret")
+        }
+    }
     ignore("UnloadUTF8")
-    ignore("LoadCodepoints")
+    getFunction(api.functions, "LoadCodepoints")!.params![1].binding = { jsType: "{ count: number } | null | undefined" }
+    getFunction(api.functions, "LoadCodepoints")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("const char *", "text", "argv[0]")
+            gen.declare("count", "int", false, "0")
+            gen.call("LoadCodepoints", ["text", "&count"], { type: "int *", name: "codepoints" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasCodepoints = gen.if("codepoints != NULL")
+            hasCodepoints.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)codepoints, count*sizeof(int))")
+            hasCodepoints.call("UnloadCodepoints", ["codepoints"])
+            const hasCount = gen.if("!JS_IsNull(argv[1]) && !JS_IsUndefined(argv[1])")
+            hasCount.call("JS_SetPropertyStr", ["ctx", "argv[1]", "\"count\"", "JS_NewInt32(ctx, count)"])
+            gen.jsCleanUpParameter("const char *", "text")
+            gen.returnExp("ret")
+        }
+    }
     ignore("UnloadCodepoints")
-    ignore("GetCodepointCount")
-    ignore("GetCodepoint")
-    ignore("GetCodepointNext")
-    ignore("GetCodepointPrevious")
-    ignore("CodepointToUTF8")
+    getFunction(api.functions, "GetCodepointCount")!.binding = {}
+    getFunction(api.functions, "GetCodepoint")!.binding = {}
+    getFunction(api.functions, "GetCodepointNext")!.binding = {}
+    getFunction(api.functions, "GetCodepointPrevious")!.binding = {}
+    getFunction(api.functions, "CodepointToUTF8")!.binding = {}
 
-    // Not supported, use JS Stdlib instead
-    api.functions.filter(x => x.name.startsWith("Text")).forEach(x => ignore(x.name))
+    ignore("TextCopy")
+    ignore("TextFormat")
+    ignore("TextJoin")
+    ignore("TextSplit")
+    ignore("TextAppend")
+    getFunction(api.functions, "TextReplace")!.binding = { after: gen => gen.call("MemFree", ["(void *)returnVal"]) }
+    getFunction(api.functions, "TextInsert")!.binding = { after: gen => gen.call("MemFree", ["(void *)returnVal"]) }
 
-    ignore("DrawTriangleStrip3D")
+    getFunction(api.functions, "DrawTriangleStrip3D")!.params![0].binding = { jsType: "ArrayBuffer" }
+    getFunction(api.functions, "DrawTriangleStrip3D")!.binding = {
+        body: gen => {
+            gen.declare("pointsSize", "size_t")
+            gen.declare("pointsBuffer", "void *", false, "JS_GetArrayBuffer(ctx, &pointsSize, argv[0])")
+            gen.if("pointsBuffer == NULL").returnExp("JS_EXCEPTION")
+            gen.declare("points", "const Vector3 *", false, "(const Vector3 *)pointsBuffer")
+            gen.jsToC("int", "pointCount", "argv[1]", core.structLookup)
+            gen.jsToC("Color", "color", "argv[2]", core.structLookup)
+            gen.if("pointsSize < ((size_t)pointCount*sizeof(Vector3))").returnExp("JS_EXCEPTION")
+            gen.call("DrawTriangleStrip3D", ["points", "pointCount", "color"])
+            gen.returnExp("JS_UNDEFINED")
+        }
+    }
     ignore("LoadMaterials")
     ignore("LoadModelAnimations")
     ignore("UpdateModelAnimation")
     ignore("UnloadModelAnimation")
     ignore("UnloadModelAnimations")
     ignore("IsModelAnimationValid")
-    ignore("ExportWaveAsCode")
+    getFunction(api.functions, "ExportWaveAsCode")!.binding = {}
 
     // Wave/Sound management functions
-    ignore("LoadWaveSamples")
+    getFunction(api.functions, "LoadWaveSamples")!.binding = {
+        jsReturns: "ArrayBuffer | null",
+        body: gen => {
+            gen.jsToC("Wave", "wave", "argv[0]", core.structLookup)
+            gen.call("LoadWaveSamples", ["wave"], { type: "float *", name: "samples" })
+            gen.declare("ret", "JSValue", false, "JS_NULL")
+            const hasSamples = gen.if("samples != NULL")
+            hasSamples.statement("ret = JS_NewArrayBufferCopy(ctx, (const uint8_t *)samples, wave.frameCount*wave.channels*sizeof(float))")
+            hasSamples.call("UnloadWaveSamples", ["samples"])
+            gen.returnExp("ret")
+        }
+    }
     ignore("UnloadWaveSamples")
-    ignore("LoadMusicStreamFromMemory")
-    ignore("LoadAudioStream")
-    ignore("IsAudioStreamReady")
-    ignore("UnloadAudioStream")
-    ignore("UpdateAudioStream")
-    ignore("IsAudioStreamProcessed")
-    ignore("PlayAudioStream")
-    ignore("PauseAudioStream")
-    ignore("ResumeAudioStream")
-    ignore("IsAudioStreamPlaying")
-    ignore("StopAudioStream")
-    ignore("SetAudioStreamVolume")
-    ignore("SetAudioStreamPitch")
-    ignore("SetAudioStreamPan")
-    ignore("SetAudioStreamBufferSizeDefault")
+    getFunction(api.functions, "LoadMusicStreamFromMemory")!.params![2].binding = { ignore: true }
+    getFunction(api.functions, "LoadMusicStreamFromMemory")!.binding = {
+        customizeCall: "Music returnVal = LoadMusicStreamFromMemory(fileType, data, (int)data_size);"
+    }
+    getFunction(api.functions, "LoadAudioStream")!.binding = {}
+    getFunction(api.functions, "UnloadAudioStream")!.binding = {}
+    getFunction(api.functions, "UpdateAudioStream")!.params![1].binding = { typeAlias: "const void *", jsType: "ArrayBuffer" }
+    getFunction(api.functions, "UpdateAudioStream")!.binding = {}
+    getFunction(api.functions, "IsAudioStreamProcessed")!.binding = {}
+    getFunction(api.functions, "PlayAudioStream")!.binding = {}
+    getFunction(api.functions, "PauseAudioStream")!.binding = {}
+    getFunction(api.functions, "ResumeAudioStream")!.binding = {}
+    getFunction(api.functions, "IsAudioStreamPlaying")!.binding = {}
+    getFunction(api.functions, "StopAudioStream")!.binding = {}
+    getFunction(api.functions, "SetAudioStreamVolume")!.binding = {}
+    getFunction(api.functions, "SetAudioStreamPitch")!.binding = {}
+    getFunction(api.functions, "SetAudioStreamPan")!.binding = {}
+    getFunction(api.functions, "SetAudioStreamBufferSizeDefault")!.binding = {}
     ignore("SetAudioStreamCallback")
     ignore("AttachAudioStreamProcessor")
     ignore("DetachAudioStreamProcessor")
@@ -571,17 +879,17 @@ function main(){
     const setOutParam = (fun: RayLibFunction, index: number) => {
         const param = fun!.params![index]
         param.binding = { 
-            jsType: `{ ${param.name}: number }`,
+            jsType: `{ ${param.name}: number } | null | undefined`,
             customConverter: (gen,src) => {
                 gen.declare(param.name, param.type, false, "NULL");
                 gen.declare(param.name+"_out", param.type.replace(" *",""))
-                const body = gen.if("!JS_IsNull("+src+")")
+                const body = gen.if("!JS_IsNull("+src+") && !JS_IsUndefined("+src+")")
                 body.statement(param.name + " = &" + param.name + "_out")
                 body.call("JS_GetPropertyStr", ["ctx",src, '"'+param.name+'"'], { name: param.name+"_js", type: "JSValue" })
                 body.call("JS_ToInt32", ["ctx",param.name,param.name+"_js"])
             },
             customCleanup: (gen,src) => {
-                const body = gen.if("!JS_IsNull("+src+")")
+                const body = gen.if("!JS_IsNull("+src+") && !JS_IsUndefined("+src+")")
                 body.call("JS_SetPropertyStr", ["ctx", src, `"${param.name}"`, "JS_NewInt32(ctx,"+param.name+"_out)"])
             } 
         }
@@ -615,6 +923,10 @@ function main(){
     setOutParam(getFunction(api.functions, "GuiSpinner")!, 2)
     setOutParam(getFunction(api.functions, "GuiValueBox")!, 2)
     setOutParam(getFunction(api.functions, "GuiListView")!, 2)
+    setOutParam(getFunction(api.functions, "GetCodepoint")!, 1)
+    setOutParam(getFunction(api.functions, "GetCodepointNext")!, 1)
+    setOutParam(getFunction(api.functions, "GetCodepointPrevious")!, 1)
+    setOutParam(getFunction(api.functions, "CodepointToUTF8")!, 1)
 
     // const setStringListParam = (fun: RayLibFunction, index: number, indexLen: number) => {
     //     const lenParam = fun!.params![indexLen]

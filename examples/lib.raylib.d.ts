@@ -552,6 +552,8 @@ declare function getShaderLocation(shader: Shader, uniformName: string | undefin
 declare function getShaderLocationAttrib(shader: Shader, attribName: string | undefined | null): number;
 /** Set shader uniform value */
 declare function setShaderValue(shader: Shader, locIndex: number, value: any, uniformType: number): void;
+/** Set shader uniform value vector */
+declare function setShaderValueV(shader: Shader, locIndex: number, value: ArrayBuffer, uniformType: number, count: number): void;
 /** Set shader uniform value (matrix 4x4) */
 declare function setShaderValueMatrix(shader: Shader, locIndex: number, mat: Matrix): void;
 /** Set shader uniform value for texture (sampler2d) */
@@ -582,6 +584,12 @@ declare function getFrameTime(): number;
 declare function getTime(): number;
 /** Get current FPS */
 declare function getFPS(): number;
+/** Swap back buffer with front buffer (screen drawing) */
+declare function swapScreenBuffer(): void;
+/** Register all input events */
+declare function pollInputEvents(): void;
+/** Wait for some time (halt program execution) */
+declare function waitTime(seconds: number): void;
 /** Set the seed for the random number generator */
 declare function setRandomSeed(seed: number): void;
 /** Get a random value between min and max (both included) */
@@ -600,6 +608,8 @@ declare function setTraceLogLevel(logLevel: number): void;
 declare function loadFileData(fileName: string | undefined | null): ArrayBuffer;
 /** Save data to file from byte array (write), returns true on success */
 declare function saveFileData(fileName: string | undefined | null, data: any, dataSize: number): boolean;
+/** Export data to code (.h), returns true on success */
+declare function exportDataAsCode(data: ArrayBuffer, fileName: string | undefined | null): boolean;
 /** Load text data from file (read), returns a '\0' terminated string */
 declare function loadFileText(fileName: string | undefined | null): string | undefined | null;
 /** Save text data to file (write), string must be '\0' terminated, returns true on success */
@@ -644,8 +654,20 @@ declare function isFileDropped(): boolean;
 declare function loadDroppedFiles(): string[];
 /** Get file modification time (last write time) */
 declare function getFileModTime(fileName: string | undefined | null): number;
+/** Compress data (DEFLATE algorithm), memory must be MemFree() */
+declare function compressData(data: ArrayBuffer): ArrayBuffer | null;
+/** Decompress data (DEFLATE algorithm), memory must be MemFree() */
+declare function decompressData(compData: ArrayBuffer): ArrayBuffer | null;
+/** Encode data to Base64 string, memory must be MemFree() */
+declare function encodeDataBase64(data: ArrayBuffer): string | null;
+/** Decode Base64 string data, memory must be MemFree() */
+declare function decodeDataBase64(data: string | null | undefined): ArrayBuffer | null;
 /** Compute CRC32 hash code */
 declare function computeCRC32(data: ArrayBuffer, dataSize: number): number;
+/** Compute MD5 hash code, returns static int[4] (16 bytes) */
+declare function computeMD5(data: ArrayBuffer): ArrayBuffer;
+/** Compute SHA1 hash code, returns static int[5] (20 bytes) */
+declare function computeSHA1(data: ArrayBuffer): ArrayBuffer;
 /** Load automation events list from file, NULL for empty list, capacity = MAX_AUTOMATION_EVENTS */
 declare function loadAutomationEventList(fileName: string | undefined | null): AutomationEventList;
 /** Unload automation events list from file */
@@ -774,6 +796,8 @@ declare function drawLine(startPosX: number, startPosY: number, endPosX: number,
 declare function drawLineV(startPos: Vector2, endPos: Vector2, color: Color): void;
 /** Draw a line (using triangles/quads) */
 declare function drawLineEx(startPos: Vector2, endPos: Vector2, thick: number, color: Color): void;
+/** Draw lines sequence (using gl lines) */
+declare function drawLineStrip(points: ArrayBuffer, pointCount: number, color: Color): void;
 /** Draw line segment cubic-bezier in-out interpolation */
 declare function drawLineBezier(startPos: Vector2, endPos: Vector2, thick: number, color: Color): void;
 /** Draw a color-filled circle */
@@ -826,6 +850,10 @@ declare function drawRectangleRoundedLinesEx(rec: Rectangle, roundness: number, 
 declare function drawTriangle(v1: Vector2, v2: Vector2, v3: Vector2, color: Color): void;
 /** Draw triangle outline (vertex in counter-clockwise order!) */
 declare function drawTriangleLines(v1: Vector2, v2: Vector2, v3: Vector2, color: Color): void;
+/** Draw a triangle fan defined by points (first vertex is the center) */
+declare function drawTriangleFan(points: ArrayBuffer, pointCount: number, color: Color): void;
+/** Draw a triangle strip defined by points */
+declare function drawTriangleStrip(points: ArrayBuffer, pointCount: number, color: Color): void;
 /** Draw a regular polygon (Vector version) */
 declare function drawPoly(center: Vector2, sides: number, radius: number, rotation: number, color: Color): void;
 /** Draw a polygon outline of n sides */
@@ -878,12 +906,20 @@ declare function checkCollisionPointCircle(point: Vector2, center: Vector2, radi
 declare function checkCollisionPointTriangle(point: Vector2, p1: Vector2, p2: Vector2, p3: Vector2): boolean;
 /** Check if point belongs to line created between two points [p1] and [p2] with defined margin in pixels [threshold] */
 declare function checkCollisionPointLine(point: Vector2, p1: Vector2, p2: Vector2, threshold: number): boolean;
+/** Check if point is within a polygon described by array of vertices */
+declare function checkCollisionPointPoly(point: Vector2, points: ArrayBuffer, pointCount: number): boolean;
+/** Check the collision between two lines defined by two points each, returns collision point by reference */
+declare function checkCollisionLines(startPos1: Vector2, endPos1: Vector2, startPos2: Vector2, endPos2: Vector2, collisionPoint: { x: number, y: number } | null | undefined): boolean;
 /** Get collision rectangle for two rectangles collision */
 declare function getCollisionRec(rec1: Rectangle, rec2: Rectangle): Rectangle;
 /** Load image from file into CPU memory (RAM) */
 declare function loadImage(fileName: string | undefined | null): Image;
 /** Load image from RAW file data */
 declare function loadImageRaw(fileName: string | undefined | null, width: number, height: number, format: number, headerSize: number): Image;
+/** Load image sequence from file (frames appended to image.data) */
+declare function loadImageAnim(fileName: string | undefined | null, frames: { frames: number } | null | undefined): Image;
+/** Load image sequence from memory buffer */
+declare function loadImageAnimFromMemory(fileType: string | undefined | null, fileData: ArrayBuffer, frames: { frames: number } | null | undefined): Image;
 /** Load image from memory buffer, fileType refers to extension: i.e. '.png' */
 declare function loadImageFromMemory(fileType: string | undefined | null, fileData: ArrayBuffer, dataSize: number): Image;
 /** Load image from GPU texture data */
@@ -896,6 +932,10 @@ declare function isImageValid(image: Image): boolean;
 declare function unloadImage(image: Image): void;
 /** Export image data to file, returns true on success */
 declare function exportImage(image: Image, fileName: string | undefined | null): boolean;
+/** Export image to memory buffer */
+declare function exportImageToMemory(image: Image, fileType: string | undefined | null): ArrayBuffer | null;
+/** Export image as code file defining an array of bytes, returns true on success */
+declare function exportImageAsCode(image: Image, fileName: string | undefined | null): boolean;
 /** Generate image: plain color */
 declare function genImageColor(width: number, height: number, color: Color): Image;
 /** Generate image: linear gradient, direction in degrees [0..360], 0=Vertical gradient */
@@ -940,6 +980,8 @@ declare function imageAlphaMask(image: Image, alphaMask: Image): void;
 declare function imageAlphaPremultiply(image: Image): void;
 /** Apply Gaussian blur using a box blur approximation */
 declare function imageBlurGaussian(image: Image, blurSize: number): void;
+/** Apply custom square convolution kernel to image */
+declare function imageKernelConvolution(image: Image, kernel: ArrayBuffer, kernelSize: number): void;
 /** Resize image (Bicubic scaling algorithm) */
 declare function imageResize(image: Image, newWidth: number, newHeight: number): void;
 /** Resize image (Nearest-Neighbor scaling algorithm) */
@@ -974,6 +1016,8 @@ declare function imageColorBrightness(image: Image, brightness: number): void;
 declare function imageColorReplace(image: Image, color: Color, replace: Color): void;
 /** Load color data from image as a Color array (RGBA - 32bit) */
 declare function loadImageColors(image: Image): ArrayBuffer;
+/** Load colors palette from image as a Color array (RGBA - 32bit) */
+declare function loadImagePalette(image: Image, maxPaletteSize: number, colorCount: { colorCount: number } | null | undefined): ArrayBuffer | null;
 /** Get image alpha border rectangle */
 declare function getImageAlphaBorder(image: Image, threshold: number): Rectangle;
 /** Get image pixel color at (x, y) position */
@@ -1088,6 +1132,10 @@ declare function colorAlphaBlend(dst: Color, src: Color, tint: Color): Color;
 declare function colorLerp(color1: Color, color2: Color, factor: number): Color;
 /** Get Color structure from hexadecimal value */
 declare function getColor(hexValue: number): Color;
+/** Get Color from a source pixel pointer of certain format */
+declare function getPixelColor(srcPtr: any, format: number): Color;
+/** Set color formatted into destination pixel pointer */
+declare function setPixelColor(dstPtr: any, color: Color, format: number): void;
 /** Get pixel data size in bytes for certain format */
 declare function getPixelDataSize(width: number, height: number, format: number): number;
 /** Get the default Font */
@@ -1098,10 +1146,14 @@ declare function loadFont(fileName: string | undefined | null): Font;
 declare function loadFontEx(fileName: string | undefined | null, fontSize: number): Font;
 /** Load font from Image (XNA style) */
 declare function loadFontFromImage(image: Image, key: Color, firstChar: number): Font;
+/** Load font from memory buffer, fileType refers to extension: i.e. '.ttf' */
+declare function loadFontFromMemory(fileType: string | undefined | null, fileData: ArrayBuffer, fontSize: number): Font;
 /** Check if a font is valid (font data loaded, WARNING: GPU texture not checked) */
 declare function isFontValid(font: Font): boolean;
 /** Unload font from GPU memory (VRAM) */
 declare function unloadFont(font: Font): void;
+/** Export font as code file, returns true on success */
+declare function exportFontAsCode(font: Font, fileName: string | undefined | null): boolean;
 /** Draw current FPS */
 declare function drawFPS(posX: number, posY: number): void;
 /** Draw text (using default font) */
@@ -1112,6 +1164,8 @@ declare function drawTextEx(font: Font, text: string | undefined | null, positio
 declare function drawTextPro(font: Font, text: string | undefined | null, position: Vector2, origin: Vector2, rotation: number, fontSize: number, spacing: number, tint: Color): void;
 /** Draw one character (codepoint) */
 declare function drawTextCodepoint(font: Font, codepoint: number, position: Vector2, fontSize: number, tint: Color): void;
+/** Draw multiple character (codepoint) */
+declare function drawTextCodepoints(font: Font, codepoints: ArrayBuffer, codepointCount: number, position: Vector2, fontSize: number, spacing: number, tint: Color): void;
 /** Set vertical line spacing when drawing with line-breaks */
 declare function setTextLineSpacing(spacing: number): void;
 /** Measure string width for default font */
@@ -1120,8 +1174,50 @@ declare function measureText(text: string | undefined | null, fontSize: number):
 declare function measureTextEx(font: Font, text: string | undefined | null, fontSize: number, spacing: number): Vector2;
 /** Get glyph index position in font for a codepoint (unicode character), fallback to '?' if not found */
 declare function getGlyphIndex(font: Font, codepoint: number): number;
+/** Get glyph font info data for a codepoint (unicode character), fallback to '?' if not found */
+declare function getGlyphInfo(font: Font, codepoint: number): GlyphInfo;
 /** Get glyph rectangle in font atlas for a codepoint (unicode character), fallback to '?' if not found */
 declare function getGlyphAtlasRec(font: Font, codepoint: number): Rectangle;
+/** Load UTF-8 text encoded from codepoints array */
+declare function loadUTF8(codepoints: ArrayBuffer, length: number): string | null;
+/** Load all codepoints from a UTF-8 text string, codepoints count returned by parameter */
+declare function loadCodepoints(text: string | undefined | null, count: { count: number } | null | undefined): ArrayBuffer | null;
+/** Get total number of codepoints in a UTF-8 encoded string */
+declare function getCodepointCount(text: string | undefined | null): number;
+/** Get next codepoint in a UTF-8 encoded string, 0x3f('?') is returned on failure */
+declare function getCodepoint(text: string | undefined | null, codepointSize: { codepointSize: number } | null | undefined): number;
+/** Get next codepoint in a UTF-8 encoded string, 0x3f('?') is returned on failure */
+declare function getCodepointNext(text: string | undefined | null, codepointSize: { codepointSize: number } | null | undefined): number;
+/** Get previous codepoint in a UTF-8 encoded string, 0x3f('?') is returned on failure */
+declare function getCodepointPrevious(text: string | undefined | null, codepointSize: { codepointSize: number } | null | undefined): number;
+/** Encode one codepoint into UTF-8 byte array (array length returned as parameter) */
+declare function codepointToUTF8(codepoint: number, utf8Size: { utf8Size: number } | null | undefined): string | undefined | null;
+/** Check if two text string are equal */
+declare function textIsEqual(text1: string | undefined | null, text2: string | undefined | null): boolean;
+/** Get text length, checks for '\0' ending */
+declare function textLength(text: string | undefined | null): number;
+/** Get a piece of a text string */
+declare function textSubtext(text: string | undefined | null, position: number, length: number): string | undefined | null;
+/** Replace text string (WARNING: memory must be freed!) */
+declare function textReplace(text: string | undefined | null, replace: string | undefined | null, by: string | undefined | null): string | undefined | null;
+/** Insert text in a position (WARNING: memory must be freed!) */
+declare function textInsert(text: string | undefined | null, insert: string | undefined | null, position: number): string | undefined | null;
+/** Find first text occurrence within a string */
+declare function textFindIndex(text: string | undefined | null, find: string | undefined | null): number;
+/** Get upper case version of provided string */
+declare function textToUpper(text: string | undefined | null): string | undefined | null;
+/** Get lower case version of provided string */
+declare function textToLower(text: string | undefined | null): string | undefined | null;
+/** Get Pascal case notation version of provided string */
+declare function textToPascal(text: string | undefined | null): string | undefined | null;
+/** Get Snake case notation version of provided string */
+declare function textToSnake(text: string | undefined | null): string | undefined | null;
+/** Get Camel case notation version of provided string */
+declare function textToCamel(text: string | undefined | null): string | undefined | null;
+/** Get integer value from text (negative values not supported) */
+declare function textToInteger(text: string | undefined | null): number;
+/** Get float value from text (negative values not supported) */
+declare function textToFloat(text: string | undefined | null): number;
 /** Draw a line in 3D world space */
 declare function drawLine3D(startPos: Vector3, endPos: Vector3, color: Color): void;
 /** Draw a point in 3D space, actually a small line */
@@ -1130,6 +1226,8 @@ declare function drawPoint3D(position: Vector3, color: Color): void;
 declare function drawCircle3D(center: Vector3, radius: number, rotationAxis: Vector3, rotationAngle: number, color: Color): void;
 /** Draw a color-filled triangle (vertex in counter-clockwise order!) */
 declare function drawTriangle3D(v1: Vector3, v2: Vector3, v3: Vector3, color: Color): void;
+/** Draw a triangle strip defined by points */
+declare function drawTriangleStrip3D(points: ArrayBuffer, pointCount: number, color: Color): void;
 /** Draw cube */
 declare function drawCube(position: Vector3, width: number, height: number, length: number, color: Color): void;
 /** Draw cube (Vector version) */
@@ -1294,6 +1392,8 @@ declare function unloadSound(sound: Sound): void;
 declare function unloadSoundAlias(alias: Sound): void;
 /** Export wave data to file, returns true on success */
 declare function exportWave(wave: Wave, fileName: string | undefined | null): boolean;
+/** Export wave sample data to code (.h), returns true on success */
+declare function exportWaveAsCode(wave: Wave, fileName: string | undefined | null): boolean;
 /** Play a sound */
 declare function playSound(sound: Sound): void;
 /** Stop playing a sound */
@@ -1316,8 +1416,12 @@ declare function waveCopy(wave: Wave): Wave;
 declare function waveCrop(wave: Wave, initFrame: number, finalFrame: number): void;
 /** Convert wave data to desired format */
 declare function waveFormat(wave: Wave, sampleRate: number, sampleSize: number, channels: number): void;
+/** Load samples data from wave as a 32bit float data array */
+declare function loadWaveSamples(wave: Wave): ArrayBuffer | null;
 /** Load music stream from file */
 declare function loadMusicStream(fileName: string | undefined | null): Music;
+/** Load music stream from data */
+declare function loadMusicStreamFromMemory(fileType: string | undefined | null, data: ArrayBuffer): Music;
 /** Checks if a music stream is valid (context and buffers initialized) */
 declare function isMusicValid(music: Music): boolean;
 /** Unload music stream */
@@ -1346,8 +1450,34 @@ declare function setMusicPan(music: Music, pan: number): void;
 declare function getMusicTimeLength(music: Music): number;
 /** Get current music time played (in seconds) */
 declare function getMusicTimePlayed(music: Music): number;
+/** Load audio stream (to stream raw audio pcm data) */
+declare function loadAudioStream(sampleRate: number, sampleSize: number, channels: number): AudioStream;
 /** Checks if an audio stream is valid (buffers initialized) */
 declare function isAudioStreamValid(stream: AudioStream): boolean;
+/** Unload audio stream and free memory */
+declare function unloadAudioStream(stream: AudioStream): void;
+/** Update audio stream buffers with data */
+declare function updateAudioStream(stream: AudioStream, data: ArrayBuffer, frameCount: number): void;
+/** Check if any audio stream buffers requires refill */
+declare function isAudioStreamProcessed(stream: AudioStream): boolean;
+/** Play audio stream */
+declare function playAudioStream(stream: AudioStream): void;
+/** Pause audio stream */
+declare function pauseAudioStream(stream: AudioStream): void;
+/** Resume audio stream */
+declare function resumeAudioStream(stream: AudioStream): void;
+/** Check if audio stream is playing */
+declare function isAudioStreamPlaying(stream: AudioStream): boolean;
+/** Stop audio stream */
+declare function stopAudioStream(stream: AudioStream): void;
+/** Set volume for audio stream (1.0 is max level) */
+declare function setAudioStreamVolume(stream: AudioStream, volume: number): void;
+/** Set pitch for audio stream (1.0 is base level) */
+declare function setAudioStreamPitch(stream: AudioStream, pitch: number): void;
+/** Set pan for audio stream (0.5 is centered) */
+declare function setAudioStreamPan(stream: AudioStream, pan: number): void;
+/** Default size for new audio streams */
+declare function setAudioStreamBufferSizeDefault(size: number): void;
 /** Clamp float value */
 declare function clamp(value: number, min: number, max: number): number;
 /** Calculate linear interpolation between two floats */
@@ -1707,11 +1837,11 @@ declare function guiCheckBox(bounds: Rectangle, text: string | undefined | null,
 /** Combo Box control, returns selected item index */
 declare function guiComboBox(bounds: Rectangle, text: string | undefined | null, active: number): number;
 /** Dropdown Box control, returns selected item */
-declare function guiDropdownBox(bounds: Rectangle, text: string | undefined | null, active: { active: number }, editMode: boolean): boolean;
+declare function guiDropdownBox(bounds: Rectangle, text: string | undefined | null, active: { active: number } | null | undefined, editMode: boolean): boolean;
 /** Spinner control, returns selected value */
-declare function guiSpinner(bounds: Rectangle, text: string | undefined | null, value: { value: number }, minValue: number, maxValue: number, editMode: boolean): boolean;
+declare function guiSpinner(bounds: Rectangle, text: string | undefined | null, value: { value: number } | null | undefined, minValue: number, maxValue: number, editMode: boolean): boolean;
 /** Value Box control, updates input text with numbers */
-declare function guiValueBox(bounds: Rectangle, text: string | undefined | null, value: { value: number }, minValue: number, maxValue: number, editMode: boolean): boolean;
+declare function guiValueBox(bounds: Rectangle, text: string | undefined | null, value: { value: number } | null | undefined, minValue: number, maxValue: number, editMode: boolean): boolean;
 /** Text Box control, updates input text */
 declare function guiTextBox(bounds: Rectangle, text: { text: string }, editMode: boolean): boolean;
 /** Slider control, returns selected value */
@@ -1727,11 +1857,11 @@ declare function guiDummyRec(bounds: Rectangle, text: string | undefined | null)
 /** Grid control, returns mouse cell position */
 declare function guiGrid(bounds: Rectangle, text: string | undefined | null, spacing: number, subdivs: number): Vector2;
 /** List View control, returns selected list item index */
-declare function guiListView(bounds: Rectangle, text: string | undefined | null, scrollIndex: { scrollIndex: number }, active: number): number;
+declare function guiListView(bounds: Rectangle, text: string | undefined | null, scrollIndex: { scrollIndex: number } | null | undefined, active: number): number;
 /** Message Box control, displays a message */
 declare function guiMessageBox(bounds: Rectangle, title: string | undefined | null, message: string | undefined | null, buttons: string | undefined | null): number;
 /** Text Input Box control, ask for text, supports secret */
-declare function guiTextInputBox(bounds: Rectangle, title: string | undefined | null, message: string | undefined | null, buttons: string | undefined | null, text: { text: string }, secretViewActive: { secretViewActive: number }): number;
+declare function guiTextInputBox(bounds: Rectangle, title: string | undefined | null, message: string | undefined | null, buttons: string | undefined | null, text: { text: string }, secretViewActive: { secretViewActive: number } | null | undefined): number;
 /** Color Picker control (multiple color controls) */
 declare function guiColorPicker(bounds: Rectangle, text: string | undefined | null, color: Color): Color;
 /** Color Panel control */
